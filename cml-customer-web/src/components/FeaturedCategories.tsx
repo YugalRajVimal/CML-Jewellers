@@ -11,7 +11,7 @@ export function FeaturedCategories() {
   );
 
   // Ensure categories is always an array before using .map
-  const categories: Category[] = Array.isArray(state.data) ? state.data : [];
+  const categories: Category[] = state.status === "success" && Array.isArray(state.data) ? state.data : [];
 
   return (
     <section className="border-t border-[var(--color-stone-light)] bg-[var(--color-cream-deep)]">

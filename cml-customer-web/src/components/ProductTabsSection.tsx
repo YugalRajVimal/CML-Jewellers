@@ -22,7 +22,7 @@ export function ProductTabsSection() {
   );
 
   // Ensure products is always an array before using .map
-  const products: Product[] = Array.isArray(state.data) ? state.data : [];
+  const products: Product[] = state.status === "success" && Array.isArray(state.data) ? state.data : [];
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-16">
