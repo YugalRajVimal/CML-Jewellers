@@ -1,0 +1,160 @@
+@import "tailwindcss";
+
+:root {
+  /* Palette pulled from the CML lotus mark: deep maroon ground, aged gold leaf. */
+  --color-cream: #faf5ec;
+  --color-cream-deep: #f2e9d8;
+  --color-maroon: #4a1418;
+  --color-maroon-deep: #2c0b0e;
+  --color-gold: #b8863e;
+  --color-gold-light: #d9b876;
+  --color-ink: #251816;
+  --color-stone: #8a7a6c;
+  --color-stone-light: #d8cdbe;
+
+  /* Swap these two for the next/font variables (--font-cormorant, --font-jost)
+     once the build environment can reach fonts.googleapis.com. */
+  --font-display: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  --font-body: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+@theme inline {
+  --color-cream: var(--color-cream);
+  --color-cream-deep: var(--color-cream-deep);
+  --color-maroon: var(--color-maroon);
+  --color-maroon-deep: var(--color-maroon-deep);
+  --color-gold: var(--color-gold);
+  --color-gold-light: var(--color-gold-light);
+  --color-ink: var(--color-ink);
+  --color-stone: var(--color-stone);
+  --color-stone-light: var(--color-stone-light);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+}
+
+body {
+  background: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-weight: 300;
+}
+
+h1, h2, h3, h4,
+.font-display {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.eyebrow {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-gold);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.85rem 1.6rem;
+  background: var(--color-maroon);
+  color: var(--color-cream);
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  transition: background-color 200ms ease, transform 200ms ease;
+}
+
+.pill:hover {
+  background: var(--color-maroon-deep);
+  transform: scale(1.02);
+}
+
+.pill:active {
+  transform: scale(0.99);
+}
+
+.pill-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  background: var(--color-cream);
+  color: var(--color-maroon);
+  transition: transform 200ms ease;
+}
+
+.pill:hover .pill-icon {
+  transform: translateX(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill,
+  .pill-icon {
+    transition: none;
+  }
+  .pill:hover {
+    transform: none;
+  }
+  .pill:hover .pill-icon {
+    transform: none;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 22s linear infinite;
+  width: max-content;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background-color: var(--color-cream-deep);
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
