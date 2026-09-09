@@ -13,16 +13,38 @@ const TABS = [
   { label: "Antique Jewels", category: "antique" },
 ];
 
+/**
+ * Extracts an array of products from backend response.
+ * Handles both array and object-wrapped formats (i.e. {products: [...]})
+ */
+function getProductsFromData(data: any): Product[] {
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.products)) return data.products;
+  return [];
+}
+
 export function ProductTabsSection() {
   const [active, setActive] = useState(0);
+
   const state = useAsync(
-    () => apiClient.get<Product[]>(`/products?category=${TABS[active].category}&limit=4`, { auth: false }),
-    (products) => !Array.isArray(products) || products.length === 0,
+    () => {
+      console.log("[ProductTabsSection] Fetching products for tab:", TABS[active].category);
+      // Don't assume backend always returns a raw array
+      return apiClient.get<any>(`/products?category=${TABS[active].category}&limit=4`, { auth: false });
+    },
+    (resp) => {
+      const arr = getProductsFromData(resp);
+      const invalid = !Array.isArray(arr) || arr.length === 0;
+      if (invalid) {
+        console.log("[ProductTabsSection] No products found for tab:", TABS[active].category, resp);
+      }
+      return invalid;
+    },
     [active],
   );
 
-  // Ensure products is always an array before using .map
-  const products: Product[] = state.status === "success" && Array.isArray(state.data) ? state.data : [];
+  // Always extract products properly regardless of backend response format
+  const products: Product[] = state.status === "success" ? getProductsFromData(state.data) : [];
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-16">
@@ -63,15 +85,27 @@ export function ProductTabsSection() {
         )}
 
         {state.status === "empty" && (
-          <p className="text-center text-sm text-[var(--color-stone)]">Nothing in this collection yet.</p>
+          <p className="text-center text-sm text-[var(--color-stone)]">
+            Nothing in this collection yet.
+          </p>
         )}
 
-        {state.status === "success" && (
+        {state.status === "success" && products.length > 0 && (
           <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-4">
             {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard
+                key={product.id}
+                product={product}
+              />
             ))}
           </div>
+        )}
+
+        {/* Guard: If somehow success but empty, show nothing-in-collection */}
+        {state.status === "success" && products.length === 0 && (
+          <p className="text-center text-sm text-[var(--color-stone)]">
+            Nothing in this collection yet.
+          </p>
         )}
       </div>
     </section>

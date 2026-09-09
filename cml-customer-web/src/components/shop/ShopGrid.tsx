@@ -14,6 +14,13 @@ import { Pagination } from "./Pagination";
 
 const PAGE_SIZE = 12;
 
+// Helper to extract raw product array, even if {products: [...]} shape
+function getProductsFromApiData(data: any): Product[] {
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.products)) return data.products;
+  return [];
+}
+
 type GridState =
   | { status: "loading" }
   | { status: "error"; message: string }
@@ -62,13 +69,19 @@ export function ShopGrid({ category, title }: { category?: string; title: string
 
     const qs = toQueryString({ page, limit: PAGE_SIZE, sort, q: q || undefined, minPrice, maxPrice, metal, category });
 
+    console.log("[ShopGrid] Fetching products with params:", { page, sort, q, minPrice, maxPrice, metal, category, qs });
+
     apiClient
-      .getWithMeta<Product[]>(`/products${qs}`, { auth: false })
+      .getWithMeta<any>(`/products${qs}`, { auth: false })
       .then(({ data, meta }) => {
         if (cancelled) return;
-        // Ensure data is always an array
-        const products: Product[] = Array.isArray(data) ? data : [];
-        if (products.length === 0) {
+
+        // data might be {products: Product[]} or Product[], handle both
+        const products: Product[] = getProductsFromApiData(data);
+
+        console.log("[ShopGrid] Products loaded:", products, "Meta:", meta);
+
+        if (!Array.isArray(products) || products.length === 0) {
           setState({ status: "empty" });
         } else {
           setState({ status: "success", products, total: meta?.total ?? products.length });
@@ -77,6 +90,7 @@ export function ShopGrid({ category, title }: { category?: string; title: string
       .catch((err: unknown) => {
         if (cancelled) return;
         const message = err instanceof ApiClientError ? err.message : "Couldn't load products.";
+        console.error("[ShopGrid] Error loading products:", err);
         setState({ status: "error", message });
       });
 
@@ -130,8 +144,9 @@ export function ShopGrid({ category, title }: { category?: string; title: string
           {state.status === "success" && (
             <>
               <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 xl:grid-cols-4">
-                {(Array.isArray(state.products) ? state.products : []).map((product) => (
-                  <ProductCard key={product.id} product={product} />
+                {state.products.map((product) => (
+                  // Support product.id or product._id as key (backend might use either shape)
+                  <ProductCard key={product.id ?? product.id} product={product} />
                 ))}
               </div>
               <Pagination

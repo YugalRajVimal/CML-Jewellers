@@ -22,7 +22,15 @@ export function SplitPromoBanner() {
   return (
     <Reveal>
       <section className="grid gap-0 lg:grid-cols-2">
-        <div className="aspect-[4/3] w-full bg-[var(--color-cream-deep)] lg:aspect-auto" aria-hidden />
+        <div className="aspect-[4/3] w-full bg-[var(--color-cream-deep)] overflow-hidden lg:aspect-auto flex items-center justify-center">
+          <img
+            src="/Images/I2.jpg"
+            alt="Gold and gemstone jewellery"
+            className="h-full w-full object-cover object-center"
+            draggable={false}
+          />
+        </div>
+  
 
         <div className="flex flex-col justify-center bg-[var(--color-maroon-deep)] px-8 py-16 text-center lg:px-16">
           <p className="eyebrow text-[var(--color-gold-light)]">Jewels as unique as you</p>

@@ -98,7 +98,14 @@ export function Testimonials() {
           </div>
 
           <div className="relative mx-auto aspect-square w-full max-w-sm">
-            <div className="h-full w-full rounded-full bg-[var(--color-cream-deep)]" aria-hidden />
+            <div className="h-full w-full  rounded-t-[70%] bg-[var(--color-cream-deep)] overflow-hidden" aria-hidden>
+              <img
+                src="/Images/I6.jpg"
+                alt="Customer testimonial collage"
+                className="h-full w-full object-cover object-center"
+                draggable={false}
+              />
+            </div>
             <Sparkle className="absolute -right-2 -top-2" size={36} />
           </div>
         </div>

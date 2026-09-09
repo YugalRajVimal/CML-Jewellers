@@ -63,7 +63,15 @@ export function FirstVisitModal() {
               <X size={16} strokeWidth={1.5} />
             </button>
 
-            <div className="hidden bg-[var(--color-cream-deep)] sm:block" aria-hidden />
+            <div className="hidden bg-[var(--color-cream-deep)] sm:block" aria-hidden>
+              <img
+                src="/Images/0.jpg"
+                alt=""
+                className="h-full w-full object-cover object-center"
+                draggable={false}
+              />
+            </div>
+      
 
             <div className="flex flex-col justify-center p-8">
               <p className="eyebrow">On your first purchase</p>

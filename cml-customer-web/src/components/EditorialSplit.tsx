@@ -26,7 +26,15 @@ export function EditorialSplit() {
   return (
     <section className="mx-auto max-w-7xl px-6 py-16">
       <Reveal className="grid gap-10 lg:grid-cols-2 lg:items-center">
-        <div className="aspect-[4/3] w-full bg-[var(--color-cream-deep)]" aria-hidden />
+        <div className=" w-full bg-[var(--color-cream-deep)] flex items-center justify-center overflow-hidden rounded-t-[70%]">
+          <img
+            src="/Images/I3.jpg"
+            alt="Gold and gemstone jewellery"
+            className="h-full w-full object-cover object-center"
+            draggable={false}
+          />
+        </div>
+  
         <div>
           <p className="eyebrow">Made to last</p>
           <h2 className="mt-3 font-display text-4xl leading-tight text-[var(--color-ink)]">

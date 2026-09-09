@@ -51,7 +51,16 @@ export default function Home() {
           </Link>
         </motion.div>
 
-        <div className="aspect-[4/5] w-full rounded-sm bg-[var(--color-cream-deep)]" aria-hidden />
+        <div className="aspect-[4/5] w-full rounded-tr-[70%] bg-[var(--color-cream-deep)] overflow-hidden flex items-center justify-center">
+          <img
+            src="/Images/I1.jpg"
+            alt="Gold and gemstone jewellery"
+            className="h-full w-full object-cover object-center"
+            draggable={false}
+          />
+        </div>
+  
+  
       </section>
 
       <FeaturedCategories />
