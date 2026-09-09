@@ -10,19 +10,55 @@ import { PermissionGate } from "@/components/permission-gate";
 import { useAuth } from "@/lib/auth";
 
 const PERMISSION_GROUPS: { label: string; perms: Permission[] }[] = [
-  { label: "Dashboard", perms: ["dashboard.view"] },
-  { label: "Catalog", perms: ["products.view", "products.write", "categories.view", "categories.write", "inventory.view", "inventory.write"] },
-  { label: "Fulfilment", perms: ["purchases.view", "purchases.write", "orders.view", "orders.write", "payments.view", "sales.view"] },
-  { label: "Returns & refunds", perms: ["returns.view", "returns.write", "refunds.view", "refunds.write"] },
-  { label: "Customers", perms: ["customers.view", "coupons.view", "coupons.write"] },
-  { label: "Storefront", perms: ["content.view", "content.write"] },
-  { label: "System", perms: ["admin_users.view", "admin_users.write", "roles.view", "roles.write", "audit.view"] },
+  { label: "Dashboard", perms: ["dashboard:read"] },
+  { label: "Catalog", perms: ["product:read", "product:write", "category:write", "category:write", "inventory:read", "inventory:write"] },
+  { label: "Fulfilment", perms: ["purchase:manage", "purchase:manage", "order:read", "order:write", "order:read", "order:read"] },
+  { label: "Returns & refunds", perms: ["return:manage", "return:manage", "refund:manage", "refund:manage"] },
+  { label: "Customers", perms: ["customer:read", "coupon:manage", "coupon:manage"] },
+  { label: "Storefront", perms: ["content:manage", "content:manage"] },
+  { label: "System", perms: ["admin_user:manage", "admin_user:manage", "role:manage", "role:manage", "dashboard:read"] },
 ];
+
+function getUserId(u: any): string {
+  // Prefer _id then id
+  return u._id || u.id;
+}
+function getRoleId(r: any): string {
+  // Prefer _id then id
+  return r._id || r.id;
+}
+function getRoleName(r: any): string {
+  if (!r) return "";
+  return r.name || "";
+}
+function getRolePermissions(r: any): Permission[] {
+  // New response may nest permissions as array of objects, but old definition assumes array of strings
+  if (!r) return [];
+  // try array of objects with "name" or just string array
+  // If r.permissions is array of strings, just return it
+  if (Array.isArray(r.permissions) && typeof r.permissions[0] === "string") {
+    return r.permissions;
+  }
+  // If array of objects with a name property
+  if (Array.isArray(r.permissions) && r.permissions[0]?.name) {
+    return r.permissions.map((p: any) => p.name);
+  }
+  return [];
+}
+function getRoleDescription(r: any): string {
+  if (!r) return "";
+  return r.description || "";
+}
+function getRoleIsSystem(r: any): boolean {
+  if (!r) return false;
+  return !!r.isSystem;
+}
+
 
 function RolesInner() {
   const { can } = useAuth();
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [roles, setRoles] = useState<any[]>([]);
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState({ name: "", email: "", roleId: "" });
@@ -30,15 +66,23 @@ function RolesInner() {
   const [inviting, setInviting] = useState(false);
 
   const [roleDrawerOpen, setRoleDrawerOpen] = useState(false);
-  const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [editingRole, setEditingRole] = useState<any | null>(null);
   const [roleForm, setRoleForm] = useState<{ name: string; description: string; permissions: Permission[] }>({ name: "", description: "", permissions: [] });
   const [roleError, setRoleError] = useState<string | null>(null);
   const [savingRole, setSavingRole] = useState(false);
 
   async function load() {
-    const [u, r] = await Promise.all([api.listAdminUsers(), api.listRoles()]);
-    setUsers(u.data);
-    setRoles(r.data);
+    const [uRes, rRes] = await Promise.all([api.listAdminUsers(), api.listRoles()]);
+
+    // For new API responses, data comes under .data.admins and .data.roles; fallback for old ones
+    const admins = Array.isArray(uRes.data?.admins) ? uRes.data.admins : (Array.isArray(uRes.data) ? uRes.data : []);
+    const roleList = Array.isArray(rRes.data?.roles) ? rRes.data.roles : (Array.isArray(rRes.data) ? rRes.data : []);
+
+    console.log("Admin Users loaded:", uRes.data);
+    console.log("Roles loaded:", rRes.data);
+
+    setUsers(admins);
+    setRoles(roleList);
   }
 
   useEffect(() => { load(); }, []);
@@ -70,14 +114,18 @@ function RolesInner() {
 
   function openCreateRole() {
     setEditingRole(null);
-    setRoleForm({ name: "", description: "", permissions: ["dashboard.view"] });
+    setRoleForm({ name: "", description: "", permissions: ["dashboard:read"] });
     setRoleError(null);
     setRoleDrawerOpen(true);
   }
 
-  function openEditRole(role: Role) {
+  function openEditRole(role: any) {
     setEditingRole(role);
-    setRoleForm({ name: role.name, description: role.description, permissions: [...role.permissions] });
+    setRoleForm({ 
+      name: getRoleName(role), 
+      description: getRoleDescription(role), 
+      permissions: [...getRolePermissions(role)] 
+    });
     setRoleError(null);
     setRoleDrawerOpen(true);
   }
@@ -92,6 +140,7 @@ function RolesInner() {
   async function submitRole(e: React.FormEvent) {
     e.preventDefault();
     setRoleError(null);
+
     if (!editingRole && !roleForm.name.trim()) {
       setRoleError("Role name is required.");
       return;
@@ -99,7 +148,7 @@ function RolesInner() {
     setSavingRole(true);
     try {
       if (editingRole) {
-        await api.updateRolePermissions(editingRole.id, roleForm.permissions);
+        await api.updateRolePermissions(getRoleId(editingRole), roleForm.permissions);
       } else {
         await api.createRole(roleForm);
       }
@@ -118,7 +167,7 @@ function RolesInner() {
         eyebrow="System"
         title="Admin users & roles"
         description="Manage who can access the console and what each role can do."
-        actions={can("admin_users.write") && <Button variant="primary" onClick={() => setInviteOpen(true)}><UserPlus size={15} /> Invite admin</Button>}
+        actions={can("admin_user:manage") && <Button variant="primary" onClick={() => setInviteOpen(true)}><UserPlus size={15} /> Invite admin</Button>}
       />
 
       <div className="grid lg:grid-cols-3 gap-4">
@@ -126,19 +175,35 @@ function RolesInner() {
           <div className="px-5 py-4 border-b border-line"><p className="text-sm font-medium text-ink-900">Admin users</p></div>
           <div className="divide-y divide-line">
             {users.map((u) => {
-              const role = roles.find((r) => r.id === u.roleId);
+              // The new admin user object: { ..., roleId : {_id: ..., name: ...} } or roleId: string
+              let userRoleObj = undefined;
+              if (u.roleId && typeof u.roleId === "object" && u.roleId._id) {
+                userRoleObj = roles.find((r) => getRoleId(r) === u.roleId._id);
+              } else if (u.roleId && typeof u.roleId === "string") {
+                userRoleObj = roles.find((r) => getRoleId(r) === u.roleId);
+              }
+              let statusText = typeof u.isActive === "boolean"
+                ? (u.isActive ? "active" : "suspended")
+                : (u.status || "active");
               return (
-                <div key={u.id} className="flex items-center justify-between px-5 py-3">
+                <div key={getUserId(u)} className="flex items-center justify-between px-5 py-3">
                   <div>
                     <p className="font-medium text-ink-900">{u.name}</p>
                     <p className="text-xs text-ink-500">{u.email}</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-ink-500">{role?.name}</span>
-                    <StatusPill status={u.status} />
-                    {can("admin_users.write") && (
-                      <button onClick={() => toggleUserStatus(u.id)} className="rounded-md p-1 hover:bg-ink-100" aria-label={u.status === "active" ? "Suspend" : "Reactivate"}>
-                        <UserX size={14} className={u.status === "active" ? "text-ink-400" : "text-good"} />
+                    <span className="text-xs text-ink-500">
+                      {/* Try to display role name from embedded or from lookup */}
+                      {typeof u.roleId === "object" && u.roleId.name ? u.roleId.name : getRoleName(userRoleObj)}
+                    </span>
+                    <StatusPill status={statusText} />
+                    {can("admin_user:manage") && (
+                      <button
+                        onClick={() => toggleUserStatus(getUserId(u))}
+                        className="rounded-md p-1 hover:bg-ink-100"
+                        aria-label={statusText === "active" ? "Suspend" : "Reactivate"}
+                      >
+                        <UserX size={14} className={statusText === "active" ? "text-ink-400" : "text-good"} />
                       </button>
                     )}
                   </div>
@@ -151,27 +216,27 @@ function RolesInner() {
         <Panel className="p-5">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm font-medium text-ink-900 flex items-center gap-2"><ShieldCheck size={14} /> Roles</p>
-            {can("roles.write") && <button onClick={openCreateRole} className="text-xs font-medium text-maroon-600 hover:underline">+ New role</button>}
+            {can("role:manage") && <button onClick={openCreateRole} className="text-xs font-medium text-maroon-600 hover:underline">+ New role</button>}
           </div>
           <div className="space-y-4">
             {roles.map((r) => (
-              <div key={r.id} className="border-b border-line last:border-0 pb-4 last:pb-0">
+              <div key={getRoleId(r)} className="border-b border-line last:border-0 pb-4 last:pb-0">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="font-medium text-ink-900 text-sm">{r.name}</p>
-                    <p className="text-xs text-ink-500 mb-2">{r.description}</p>
+                    <p className="font-medium text-ink-900 text-sm">{getRoleName(r)}</p>
+                    <p className="text-xs text-ink-500 mb-2">{getRoleDescription(r)}</p>
                   </div>
-                  {can("roles.write") && !r.isSystem && (
+                  {can("role:manage") && !getRoleIsSystem(r) && (
                     <button onClick={() => openEditRole(r)} className="rounded-md p-1 hover:bg-ink-100 shrink-0" aria-label="Edit permissions">
                       <Pencil size={13} className="text-ink-500" />
                     </button>
                   )}
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {r.permissions.slice(0, 4).map((p) => (
+                  {getRolePermissions(r).slice(0, 4).map((p) => (
                     <span key={p} className="text-[10px] rounded bg-ink-100 px-1.5 py-0.5 text-ink-500 font-mono">{p}</span>
                   ))}
-                  {r.permissions.length > 4 && <span className="text-[10px] text-ink-300">+{r.permissions.length - 4} more</span>}
+                  {getRolePermissions(r).length > 4 && <span className="text-[10px] text-ink-300">+{getRolePermissions(r).length - 4} more</span>}
                 </div>
               </div>
             ))}
@@ -186,7 +251,11 @@ function RolesInner() {
           <Field label="Role">
             <Select value={inviteForm.roleId} onChange={(e) => setInviteForm({ ...inviteForm, roleId: e.target.value })} className="w-full">
               <option value="">Select a role…</option>
-              {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              {roles.map((r) => (
+                <option key={getRoleId(r)} value={getRoleId(r)}>
+                  {getRoleName(r)}
+                </option>
+              ))}
             </Select>
           </Field>
           {inviteError && <p className="text-sm text-bad mb-3">{inviteError}</p>}
@@ -200,7 +269,7 @@ function RolesInner() {
       <Drawer
         open={roleDrawerOpen}
         onClose={() => setRoleDrawerOpen(false)}
-        title={editingRole ? `Edit permissions — ${editingRole.name}` : "New role"}
+        title={editingRole ? `Edit permissions — ${getRoleName(editingRole)}` : "New role"}
         description={editingRole ? undefined : "Pick exactly what this role can see and do across the console."}
       >
         <form onSubmit={submitRole}>
@@ -243,5 +312,5 @@ function RolesInner() {
 }
 
 export default function RolesPage() {
-  return <PermissionGate perm="roles.view"><RolesInner /></PermissionGate>;
+  return <PermissionGate perm="role:manage"><RolesInner /></PermissionGate>;
 }

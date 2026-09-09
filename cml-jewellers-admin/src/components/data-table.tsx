@@ -93,10 +93,10 @@ export function DataTable<T extends { id: string }>({
               </tr>
             )}
             {!loading &&
-              pageRows.map((row) => (
-                <tr key={row.id} className="border-b border-line last:border-0 hover:bg-ink-100/30">
-                  {columns.map((col) => (
-                    <td key={col.key} className={clsx("px-4 py-3 align-middle", col.align === "right" && "text-right")}>
+              pageRows.map((row, rowIdx) => (
+                <tr key={`row-${row.id}-${rowIdx}`} className="border-b border-line last:border-0 hover:bg-ink-100/30">
+                  {columns.map((col, colIdx) => (
+                    <td key={`cell-${row.id}-${col.key}-${colIdx}`} className={clsx("px-4 py-3 align-middle", col.align === "right" && "text-right")}>
                       {col.render(row)}
                     </td>
                   ))}

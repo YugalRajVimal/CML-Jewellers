@@ -1,22 +1,22 @@
 // // Types mirror PART 6 — SHARED DATA MODELS and PART 7 — STATE MACHINES
 
 // export type Permission =
-//   | "products.view" | "products.write"
-//   | "categories.view" | "categories.write"
-//   | "inventory.view" | "inventory.write"
-//   | "purchases.view" | "purchases.write"
-//   | "orders.view" | "orders.write"
-//   | "sales.view"
-//   | "payments.view"
-//   | "returns.view" | "returns.write"
-//   | "refunds.view" | "refunds.write"
-//   | "customers.view"
-//   | "coupons.view" | "coupons.write"
-//   | "content.view" | "content.write"
-//   | "admin_users.view" | "admin_users.write"
-//   | "roles.view" | "roles.write"
-//   | "audit.view"
-//   | "dashboard.view";
+//   | "product:read" | "product:write"
+//   | "category:write" | "category:write"
+//   | "inventory:read" | "inventory:write"
+//   | "purchase:manage" | "purchase:manage"
+//   | "order:read" | "order:write"
+//   | "order:read"
+//   | "order:read"
+//   | "return:manage" | "return:manage"
+//   | "refund:manage" | "refund:manage"
+//   | "customer:read"
+//   | "coupon:manage" | "coupon:manage"
+//   | "content:manage" | "content:manage"
+//   | "admin_user:manage" | "admin_user:manage"
+//   | "role:manage" | "role:manage"
+//   | "dashboard:read"
+//   | "dashboard:read";
 
 // export interface Role {
 //   id: string;
@@ -335,7 +335,10 @@ export interface Product {
   id: string;
   name: string;
   slug: string;
+  description:string;
+  isNewArrival:boolean;
   categoryId: string;
+  category_id:string;
   subcategoryId?: string | null;
   sku: string;
   basePrice: number;
@@ -348,6 +351,7 @@ export interface Product {
   variants: ProductVariant[];
   createdAt: string;
 }
+
 
 export interface InventoryRow {
   id: string;

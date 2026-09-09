@@ -10,13 +10,13 @@
 //     description: "Full access to every module, including RBAC and audit.",
 //     isSystem: true,
 //     permissions: [
-//       "products.view", "products.write", "categories.view", "categories.write",
-//       "inventory.view", "inventory.write", "purchases.view", "purchases.write",
-//       "orders.view", "orders.write", "sales.view", "payments.view",
-//       "returns.view", "returns.write", "refunds.view", "refunds.write",
-//       "customers.view", "coupons.view", "coupons.write", "content.view",
-//       "content.write", "admin_users.view", "admin_users.write", "roles.view",
-//       "roles.write", "audit.view", "dashboard.view",
+//       "product:read", "product:write", "category:write", "category:write",
+//       "inventory:read", "inventory:write", "purchase:manage", "purchase:manage",
+//       "order:read", "order:write", "order:read", "order:read",
+//       "return:manage", "return:manage", "refund:manage", "refund:manage",
+//       "customer:read", "coupon:manage", "coupon:manage", "content:manage",
+//       "content:manage", "admin_user:manage", "admin_user:manage", "role:manage",
+//       "role:manage", "dashboard:read", "dashboard:read",
 //     ],
 //   },
 //   {
@@ -24,8 +24,8 @@
 //     name: "Catalog Manager",
 //     description: "Manages products, categories and inventory levels.",
 //     permissions: [
-//       "dashboard.view", "products.view", "products.write",
-//       "categories.view", "categories.write", "inventory.view", "inventory.write",
+//       "dashboard:read", "product:read", "product:write",
+//       "category:write", "category:write", "inventory:read", "inventory:write",
 //     ],
 //   },
 //   {
@@ -33,9 +33,9 @@
 //     name: "Operations",
 //     description: "Runs purchasing, order fulfilment and returns.",
 //     permissions: [
-//       "dashboard.view", "orders.view", "orders.write", "purchases.view",
-//       "purchases.write", "inventory.view", "returns.view", "returns.write",
-//       "refunds.view", "refunds.write", "payments.view",
+//       "dashboard:read", "order:read", "order:write", "purchase:manage",
+//       "purchase:manage", "inventory:read", "return:manage", "return:manage",
+//       "refund:manage", "refund:manage", "order:read",
 //     ],
 //   },
 //   {
@@ -43,8 +43,8 @@
 //     name: "Customer Support",
 //     description: "Read-only visibility into orders, payments and customers.",
 //     permissions: [
-//       "dashboard.view", "orders.view", "payments.view", "customers.view",
-//       "returns.view", "coupons.view",
+//       "dashboard:read", "order:read", "order:read", "customer:read",
+//       "return:manage", "coupon:manage",
 //     ],
 //   },
 // ];
@@ -280,13 +280,13 @@ export const ROLES: Role[] = [
     description: "Full access to every module, including RBAC and audit.",
     isSystem: true,
     permissions: [
-      "products.view", "products.write", "categories.view", "categories.write",
-      "inventory.view", "inventory.write", "purchases.view", "purchases.write",
-      "orders.view", "orders.write", "sales.view", "payments.view",
-      "returns.view", "returns.write", "refunds.view", "refunds.write",
-      "customers.view", "coupons.view", "coupons.write", "content.view",
-      "content.write", "admin_users.view", "admin_users.write", "roles.view",
-      "roles.write", "audit.view", "dashboard.view",
+      "product:read", "product:write", "category:write", "category:write",
+      "inventory:read", "inventory:write", "purchase:manage", "purchase:manage",
+      "order:read", "order:write", "order:read", "order:read",
+      "return:manage", "return:manage", "refund:manage", "refund:manage",
+      "customer:read", "coupon:manage", "coupon:manage", "content:manage",
+      "content:manage", "admin_user:manage", "admin_user:manage", "role:manage",
+      "role:manage", "dashboard:read", "dashboard:read",
     ],
   },
   {
@@ -294,8 +294,8 @@ export const ROLES: Role[] = [
     name: "Catalog Manager",
     description: "Manages products, categories and inventory levels.",
     permissions: [
-      "dashboard.view", "products.view", "products.write",
-      "categories.view", "categories.write", "inventory.view", "inventory.write",
+      "dashboard:read", "product:read", "product:write",
+      "category:write", "category:write", "inventory:read", "inventory:write",
     ],
   },
   {
@@ -303,9 +303,9 @@ export const ROLES: Role[] = [
     name: "Operations",
     description: "Runs purchasing, order fulfilment and returns.",
     permissions: [
-      "dashboard.view", "orders.view", "orders.write", "purchases.view",
-      "purchases.write", "inventory.view", "returns.view", "returns.write",
-      "refunds.view", "refunds.write", "payments.view",
+      "dashboard:read", "order:read", "order:write", "purchase:manage",
+      "purchase:manage", "inventory:read", "return:manage", "return:manage",
+      "refund:manage", "refund:manage", "order:read",
     ],
   },
   {
@@ -313,8 +313,8 @@ export const ROLES: Role[] = [
     name: "Customer Support",
     description: "Read-only visibility into orders, payments and customers.",
     permissions: [
-      "dashboard.view", "orders.view", "payments.view", "customers.view",
-      "returns.view", "coupons.view",
+      "dashboard:read", "order:read", "order:read", "customer:read",
+      "return:manage", "coupon:manage",
     ],
   },
 ];

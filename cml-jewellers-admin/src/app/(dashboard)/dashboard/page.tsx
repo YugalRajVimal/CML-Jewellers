@@ -12,22 +12,82 @@ function formatINR(n: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 }
 
+type DashboardStats = {
+  revenue30d: number;
+  orders30d: number;
+  customers: number;
+  openOrders: number;
+  lowStock: number;
+  pendingReturns: number;
+};
+
+type DashboardTrend = {
+  label: string;
+  revenue: number;
+  orders: number;
+};
+
+type LowStockRow = {
+  _id: string;
+  variantId: {
+    _id: string;
+    productId: string;
+    sku: string;
+    attributes?: {
+      size?: string;
+    };
+  };
+  available: number;
+  reserved: number;
+  sold: number;
+  damaged: number;
+  returned: number;
+  lowStockThreshold: number;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+};
+
+type RecentOrder = {
+  _id: string;
+  orderNumber?: string;
+  customerName?: string;
+  total?: number;
+  status?: string;
+};
+
+type DashboardData = {
+  stats: DashboardStats;
+  trend: DashboardTrend[];
+  recentOrders: RecentOrder[];
+  lowStockRows: LowStockRow[];
+};
+
+function getProductNameAndSKU(row: LowStockRow) {
+  const productName =
+    row.variantId?.attributes?.size != null
+      ? `Size ${row.variantId.attributes.size}`
+      : row.variantId?.sku || "Product";
+  const sku = row.variantId?.sku || "SKU";
+  return { productName, sku };
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [data, setData] = useState<Awaited<ReturnType<typeof api.getDashboard>>["data"] | null>(null);
-
-  // useEffect(() => {
-  //   api.getDashboard().then((res) => setData(res.data));
-  // }, []);
+  const [data, setData] = useState<DashboardData | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     api.getDashboard()
-      .then((res) => { if (!cancelled) setData(res.data); })
+      .then((res) => {
+        // Adapt API response
+        if (!cancelled) {
+          if (res && res.data) {
+            setData(res.data);
+          }
+        }
+      })
       .catch((e) => {
-        // 401 is already handled globally (unauthorizedHandler clears the
-        // session and the layout redirects to /login) — just avoid an
-        // unhandled rejection here.
         if (!(e instanceof api.ApiRequestError && e.status === 401)) {
           console.error("Failed to load dashboard", e);
         }
@@ -39,7 +99,7 @@ export default function DashboardPage() {
     <div>
       <PageHeader
         eyebrow="Overview"
-        title={`Good to see you, ${user?.name.split(" ")[0]}`}
+        title={`Good to see you, ${user?.name?.split?.(" ")[0]}`}
         description="Here's how the store is trending across catalog, orders and fulfilment."
       />
 
@@ -104,15 +164,23 @@ export default function DashboardPage() {
             <p className="text-sm text-ink-500">Everything is above threshold.</p>
           ) : (
             <ul className="space-y-3">
-              {data.lowStockRows.map((r) => (
-                <li key={r.id} className="flex items-center justify-between text-sm">
-                  <div>
-                    <p className="text-ink-900">{r.productName}</p>
-                    <p className="text-xs text-ink-500 font-mono">{r.sku}</p>
-                  </div>
-                  <span className="font-medium text-bad">{r.available} left</span>
-                </li>
-              ))}
+              {data.lowStockRows.map((r, i) => {
+                const { productName, sku } = getProductNameAndSKU(r);
+                // Use _id and SKU as key, fallback to index
+                const key = r._id && sku ? `${r._id}-${sku}` : r._id || sku || i;
+                return (
+                  <li
+                    key={key}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <div>
+                      <p className="text-ink-900">{productName}</p>
+                      <p className="text-xs text-ink-500 font-mono">{sku}</p>
+                    </div>
+                    <span className="font-medium text-bad">{r.available} left</span>
+                  </li>
+                );
+              })}
             </ul>
           )}
           <Link href="/inventory" className="mt-4 inline-block text-xs font-medium text-maroon-600 hover:underline">
@@ -130,18 +198,26 @@ export default function DashboardPage() {
           <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
         ) : (
           <div className="divide-y divide-line">
-            {data.recentOrders.map((o) => (
-              <Link key={o.id} href={`/orders/${o.id}`} className="flex items-center justify-between py-2.5 text-sm hover:bg-ink-100/30 -mx-2 px-2 rounded-lg">
-                <div>
-                  <p className="font-medium text-ink-900">{o.orderNumber}</p>
-                  <p className="text-xs text-ink-500">{o.customerName}</p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-ink-700 font-mono text-xs">{formatINR(o.total)}</span>
-                  <StatusPill status={o.status} />
-                </div>
-              </Link>
-            ))}
+            {data.recentOrders.length === 0 ? (
+              <p className="text-sm text-ink-500 py-3">No recent orders.</p>
+            ) : (
+              data.recentOrders.map((o) => (
+                <Link
+                  key={o._id}
+                  href={`/orders/${o._id}`}
+                  className="flex items-center justify-between py-2.5 text-sm hover:bg-ink-100/30 -mx-2 px-2 rounded-lg"
+                >
+                  <div>
+                    <p className="font-medium text-ink-900">{o.orderNumber || o._id}</p>
+                    <p className="text-xs text-ink-500">{o.customerName || "—"}</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-ink-700 font-mono text-xs">{o.total !== undefined ? formatINR(o.total) : "—"}</span>
+                    <StatusPill status={o.status || "unknown"} />
+                  </div>
+                </Link>
+              ))
+            )}
           </div>
         )}
       </Panel>

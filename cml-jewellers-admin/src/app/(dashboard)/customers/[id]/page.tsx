@@ -89,5 +89,5 @@ function CustomerDetailInner() {
 }
 
 export default function CustomerDetailPage() {
-  return <PermissionGate perm="customers.view"><CustomerDetailInner /></PermissionGate>;
+  return <PermissionGate perm="customer:read"><CustomerDetailInner /></PermissionGate>;
 }

@@ -233,28 +233,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   //   }
   // }, []);
 
+  // useEffect(() => {
+  //   let cancelled = false;
+  
+  //   async function bootstrap() {
+  //     const token = loadPersistedToken();
+  //     const raw = window.localStorage.getItem(SESSION_CACHE_KEY);
+  
+  //     if (!token || !raw) {
+  //       setStatus("guest");
+  //       return;
+  //     }
+  
+  //     // Don't trust the cached session blindly — confirm the token is
+  //     // still valid (right audience, not expired/revoked) before painting
+  //     // an authed UI. api.me() should hit a lightweight admin-authed route.
+  //     try {
+  //       const session = await api.me();
+  //       if (cancelled) return;
+  //       setUser(session.user);
+  //       setRole(session.role);
+  //       setStatus("authed");
+  //       window.localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
+  //     } catch {
+  //       if (cancelled) return;
+  //       setAccessToken(null);
+  //       window.localStorage.removeItem(SESSION_CACHE_KEY);
+  //       setStatus("guest");
+  //     }
+  //   }
+  
+  //   bootstrap();
+  //   return () => { cancelled = true; };
+  // }, []);
+
   useEffect(() => {
     let cancelled = false;
   
     async function bootstrap() {
       const token = loadPersistedToken();
-      const raw = window.localStorage.getItem(SESSION_CACHE_KEY);
-  
-      if (!token || !raw) {
+      if (!token) {
         setStatus("guest");
         return;
       }
   
-      // Don't trust the cached session blindly — confirm the token is
-      // still valid (right audience, not expired/revoked) before painting
-      // an authed UI. api.me() should hit a lightweight admin-authed route.
+      // Confirm the token is actually still valid before showing any authed
+      // UI — whoami works for every role (unlike GET /roles/:id, which needs
+      // role:manage), so this is safe to call for any logged-in admin.
       try {
-        const session = await api.me();
+        const res = await api.whoami();
         if (cancelled) return;
-        setUser(session.user);
-        setRole(session.role);
+        setUser(res.user);
+        setRole(res.role);
         setStatus("authed");
-        window.localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
+        window.localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(res));
       } catch {
         if (cancelled) return;
         setAccessToken(null);

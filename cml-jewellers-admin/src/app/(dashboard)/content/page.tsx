@@ -9,7 +9,8 @@ import { Drawer, Field, TextInput } from "@/components/drawer";
 import { PermissionGate } from "@/components/permission-gate";
 import { useAuth } from "@/lib/auth";
 
-const SECTION_LABEL: Record<HomepageSection["type"], string> = {
+// These types can be extended if backend adds new types
+const SECTION_LABEL: Record<string, string> = {
   hero: "Hero",
   category_strip: "Category strip",
   promo_grid: "Promo grid",
@@ -17,19 +18,54 @@ const SECTION_LABEL: Record<HomepageSection["type"], string> = {
   newsletter: "Newsletter",
 };
 
+function getBannerId(b: any): string {
+  return b.id || b._id || "";
+}
+
+function getSectionId(s: any): string {
+  return s.id || s._id || "";
+}
+
+function getSectionType(s: any): string {
+  // Accept 'type' or fallback to 'section' for legacy/variant data
+  return s.type || s.section || "section";
+}
+
+function getSectionIsActive(s: any): boolean {
+  return typeof s.isActive === "boolean" ? s.isActive : false;
+}
+
+function getBannerIsActive(b: any): boolean {
+  return typeof b.isActive === "boolean" ? b.isActive : false;
+}
+
 function ContentInner() {
   const { can } = useAuth();
-  const [banners, setBanners] = useState<Banner[] | null>(null);
-  const [sections, setSections] = useState<HomepageSection[] | null>(null);
+  const [banners, setBanners] = useState<any[] | null>(null);
+  const [sections, setSections] = useState<any[] | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form, setForm] = useState({ title: "", ctaText: "", ctaUrl: "" });
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   async function load() {
-    const [b, s] = await Promise.all([api.listBanners(), api.listHomepageSections()]);
-    setBanners(b.data);
-    setSections(s.data);
+    const [bRes, sRes] = await Promise.all([api.listBanners(), api.listHomepageSections()]);
+
+    // Defensive: handle {banners: [...]}, {sections: [...]}, and possible direct arrays
+    let bannersArr: any[] =
+      Array.isArray(bRes.data)
+        ? bRes.data
+        : (Array.isArray(bRes.data?.banners) ? bRes.data.banners : []);
+    let sectionsArr: any[] =
+      Array.isArray(sRes.data)
+        ? sRes.data
+        : (Array.isArray(sRes.data?.sections) ? sRes.data.sections : []);
+
+    console.log("Banners loaded:", bannersArr);
+    console.log("Homepage sections loaded:", sectionsArr);
+
+    setBanners(bannersArr);
+    setSections(sectionsArr);
   }
   useEffect(() => { load(); }, []);
 
@@ -74,14 +110,14 @@ function ContentInner() {
           <Panel className="divide-y divide-line">
             {!sections && <p className="p-6 text-sm text-ink-500 text-center">Loading…</p>}
             {sections?.map((s) => (
-              <div key={s.id} className="flex items-center gap-3 p-3.5">
+              <div key={getSectionId(s)} className="flex items-center gap-3 p-3.5">
                 <GripVertical size={15} className="text-ink-300 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs uppercase tracking-wide text-ink-400">{SECTION_LABEL[s.type]}</p>
+                  <p className="text-xs uppercase tracking-wide text-ink-400">{SECTION_LABEL[getSectionType(s)] || getSectionType(s)}</p>
                   <p className="text-sm text-ink-900 truncate">{s.title}</p>
                 </div>
-                <button onClick={() => can("content.write") && toggleSection(s.id)}>
-                  <StatusPill status={s.isActive ? "active" : "archived"} />
+                <button onClick={() => can("content:manage") && toggleSection(getSectionId(s))}>
+                  <StatusPill status={getSectionIsActive(s) ? "active" : "archived"} />
                 </button>
               </div>
             ))}
@@ -91,20 +127,20 @@ function ContentInner() {
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-medium text-ink-900 flex items-center gap-2"><ImageIcon size={14} /> Promo banners</p>
-            {can("content.write") && <Button size="sm" variant="primary" onClick={() => setDrawerOpen(true)}><Plus size={13} /> New banner</Button>}
+            {can("content:manage") && <Button size="sm" variant="primary" onClick={() => setDrawerOpen(true)}><Plus size={13} /> New banner</Button>}
           </div>
           <Panel className="divide-y divide-line">
             {!banners && <p className="p-6 text-sm text-ink-500 text-center">Loading…</p>}
             {banners?.map((b) => (
-              <div key={b.id} className="flex items-center gap-4 p-4">
+              <div key={getBannerId(b)} className="flex items-center gap-4 p-4">
                 <GripVertical size={16} className="text-ink-300 shrink-0" />
                 <span className="flex h-10 w-14 items-center justify-center rounded-lg bg-gold-100 text-maroon-700 shrink-0"><ImageIcon size={16} /></span>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-ink-900 truncate">{b.title}</p>
                   <p className="text-xs text-ink-500">{b.ctaText} → {b.ctaUrl}</p>
                 </div>
-                <button onClick={() => can("content.write") && toggleBanner(b.id)}>
-                  <StatusPill status={b.isActive ? "active" : "archived"} />
+                <button onClick={() => can("content:manage") && toggleBanner(getBannerId(b))}>
+                  <StatusPill status={getBannerIsActive(b) ? "active" : "archived"} />
                 </button>
               </div>
             ))}
@@ -129,5 +165,5 @@ function ContentInner() {
 }
 
 export default function ContentPage() {
-  return <PermissionGate perm="content.view"><ContentInner /></PermissionGate>;
+  return <PermissionGate perm="content:manage"><ContentInner /></PermissionGate>;
 }

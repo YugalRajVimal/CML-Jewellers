@@ -10,7 +10,25 @@ import { DataTable, Column } from "@/components/data-table";
 import { PermissionGate } from "@/components/permission-gate";
 import { useAuth } from "@/lib/auth";
 
-const emptyForm = { code: "", type: "percent" as Coupon["type"], value: "", minCartValue: "", expiry: "", usageLimit: "" };
+// Support coupons with old and new backend shape (id/_id, used/usedCount, etc).
+function getCouponId(c: any): string {
+  return c.id || c._id || "";
+}
+function getCouponUsed(c: any): number {
+  return typeof c.used === "number" ? c.used : (typeof c.usedCount === "number" ? c.usedCount : 0);
+}
+function getCouponUsageLimit(c: any): number {
+  return typeof c.usageLimit === "number" ? c.usageLimit : 0;
+}
+
+const emptyForm = {
+  code: "",
+  type: "percent" as Coupon["type"],
+  value: "",
+  minCartValue: "",
+  expiry: "",
+  usageLimit: "",
+};
 
 function CouponsInner() {
   const { can } = useAuth();
@@ -24,9 +42,20 @@ function CouponsInner() {
 
   async function load() {
     const res = await api.listCoupons();
-    setCoupons(res.data);
+    // Handle the response as an object with coupons array
+    // Defensive shape handling for new/old API responses
+    let arr: Coupon[] =
+      Array.isArray(res.data)
+        ? res.data
+        : (Array.isArray(res.data?.coupons)
+            ? res.data.coupons
+            : []);
+    console.log("Coupons loaded:", arr);
+    setCoupons(arr);
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   async function toggle(id: string) {
     await api.toggleCoupon(id);
@@ -42,7 +71,14 @@ function CouponsInner() {
 
   function openEdit(c: Coupon) {
     setEditing(c);
-    setForm({ code: c.code, type: c.type, value: String(c.value), minCartValue: String(c.minCartValue), expiry: c.expiry, usageLimit: String(c.usageLimit) });
+    setForm({
+      code: c.code,
+      type: c.type,
+      value: String(c.value),
+      minCartValue: String(c.minCartValue),
+      expiry: c.expiry,
+      usageLimit: String(getCouponUsageLimit(c)),
+    });
     setFormError(null);
     setDrawerOpen(true);
   }
@@ -57,14 +93,20 @@ function CouponsInner() {
     setSaving(true);
     try {
       if (editing) {
-        await api.updateCoupon(editing.id, {
-          value: Number(form.value), minCartValue: Number(form.minCartValue || 0),
-          expiry: form.expiry, usageLimit: Number(form.usageLimit || 0),
+        await api.updateCoupon(getCouponId(editing), {
+          value: Number(form.value),
+          minCartValue: Number(form.minCartValue || 0),
+          expiry: form.expiry,
+          usageLimit: Number(form.usageLimit || 0),
         });
       } else {
         await api.createCoupon({
-          code: form.code, type: form.type, value: Number(form.value),
-          minCartValue: Number(form.minCartValue || 0), expiry: form.expiry, usageLimit: Number(form.usageLimit || 0),
+          code: form.code,
+          type: form.type,
+          value: Number(form.value),
+          minCartValue: Number(form.minCartValue || 0),
+          expiry: form.expiry,
+          usageLimit: Number(form.usageLimit || 0),
         });
       }
       setDrawerOpen(false);
@@ -82,28 +124,86 @@ function CouponsInner() {
     await load();
   }
 
-  const columns: Column<Coupon>[] = [
-    { key: "code", header: "Code", sortValue: (c) => c.code, render: (c) => <span className="font-mono font-medium text-ink-900">{c.code}</span> },
-    { key: "value", header: "Discount", render: (c) => (c.type === "percent" ? `${c.value}% off` : `₹${c.value} flat`) },
-    { key: "min", header: "Min cart", align: "right", render: (c) => `₹${c.minCartValue.toLocaleString("en-IN")}` },
-    { key: "usage", header: "Used", align: "right", sortValue: (c) => c.used, render: (c) => `${c.used} / ${c.usageLimit}` },
-    { key: "expiry", header: "Expires", sortValue: (c) => c.expiry, render: (c) => new Date(c.expiry).toLocaleDateString() },
+  const columns: Column<any>[] = [
     {
-      key: "status", header: "Status",
+      key: "code",
+      header: "Code",
+      sortValue: (c) => c.code,
       render: (c) => (
-        can("coupons.write") ? (
-          <button onClick={() => toggle(c.id)}><StatusPill status={c.isActive ? "active" : "archived"} /></button>
-        ) : <StatusPill status={c.isActive ? "active" : "archived"} />
+        <span className="font-mono font-medium text-ink-900">
+          {c.code}
+        </span>
       ),
     },
     {
-      key: "actions", header: "", align: "right",
-      render: (c) => can("coupons.write") ? (
-        <div className="flex justify-end gap-1">
-          <button onClick={() => openEdit(c)} className="rounded-md p-1 hover:bg-ink-100" aria-label="Edit"><Pencil size={13} className="text-ink-500" /></button>
-          <button onClick={() => setPendingDelete(c.id)} className="rounded-md p-1 hover:bg-ink-100" aria-label="Delete"><Trash2 size={13} className="text-bad" /></button>
-        </div>
-      ) : null,
+      key: "value",
+      header: "Discount",
+      render: (c) =>
+        c.type === "percent"
+          ? `${c.value}% off`
+          : `₹${c.value} flat`,
+    },
+    {
+      key: "min",
+      header: "Min cart",
+      align: "right",
+      render: (c) =>
+        c.minCartValue
+          ? `₹${Number(c.minCartValue).toLocaleString("en-IN")}`
+          : "—",
+    },
+    {
+      key: "usage",
+      header: "Used",
+      align: "right",
+      sortValue: (c) => getCouponUsed(c),
+      render: (c) =>
+        `${getCouponUsed(c)} / ${getCouponUsageLimit(c)}`,
+    },
+    {
+      key: "expiry",
+      header: "Expires",
+      sortValue: (c) => c.expiry,
+      render: (c) =>
+        c.expiry
+          ? new Date(c.expiry).toLocaleDateString()
+          : "—",
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (c) =>
+        can("coupon:manage") ? (
+          <button onClick={() => toggle(getCouponId(c))}>
+            <StatusPill status={c.isActive ? "active" : "archived"} />
+          </button>
+        ) : (
+          <StatusPill status={c.isActive ? "active" : "archived"} />
+        ),
+    },
+    {
+      key: "actions",
+      header: "",
+      align: "right",
+      render: (c) =>
+        can("coupon:manage") ? (
+          <div className="flex justify-end gap-1">
+            <button
+              onClick={() => openEdit(c)}
+              className="rounded-md p-1 hover:bg-ink-100"
+              aria-label="Edit"
+            >
+              <Pencil size={13} className="text-ink-500" />
+            </button>
+            <button
+              onClick={() => setPendingDelete(getCouponId(c))}
+              className="rounded-md p-1 hover:bg-ink-100"
+              aria-label="Delete"
+            >
+              <Trash2 size={13} className="text-bad" />
+            </button>
+          </div>
+        ) : null,
     },
   ];
 
@@ -113,47 +213,144 @@ function CouponsInner() {
         eyebrow="Customers"
         title="Coupons"
         description="Discount codes with usage caps and cart minimums."
-        actions={can("coupons.write") && <Button variant="primary" onClick={openCreate}><Plus size={15} /> New coupon</Button>}
+        actions={
+          can("coupon:manage") && (
+            <Button variant="primary" onClick={openCreate}>
+              <Plus size={15} /> New coupon
+            </Button>
+          )
+        }
       />
-      <DataTable columns={columns} rows={coupons ?? []} loading={!coupons} pageSize={8} />
+      <DataTable
+        columns={columns}
+        rows={coupons ?? []}
+        loading={!coupons}
+        pageSize={8}
+      />
 
       {pendingDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 p-4">
           <div className="bg-white rounded-xl p-5 max-w-sm w-full shadow-panel">
-            <p className="text-sm text-ink-900">Delete this coupon? This can&apos;t be undone.</p>
+            <p className="text-sm text-ink-900">
+              Delete this coupon? This can&apos;t be undone.
+            </p>
             <div className="flex gap-2 mt-4 justify-end">
-              <Button size="sm" variant="secondary" onClick={() => setPendingDelete(null)}>Cancel</Button>
-              <Button size="sm" variant="danger" onClick={() => handleDelete(pendingDelete)}>Delete</Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setPendingDelete(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => handleDelete(pendingDelete)}
+              >
+                Delete
+              </Button>
             </div>
           </div>
         </div>
       )}
 
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} title={editing ? "Edit coupon" : "New coupon"}>
+      <Drawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title={editing ? "Edit coupon" : "New coupon"}
+      >
         <form onSubmit={submit}>
           <Field label="Coupon code">
-            <TextInput value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="FEST2500" className="font-mono" disabled={!!editing} />
+            <TextInput
+              value={form.code}
+              onChange={(e) =>
+                setForm({ ...form, code: e.target.value.toUpperCase() })
+              }
+              placeholder="FEST2500"
+              className="font-mono"
+              disabled={!!editing}
+            />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Type">
-              <Select value={form.type} disabled={!!editing} onChange={(e) => setForm({ ...form, type: e.target.value as Coupon["type"] })} className="w-full">
+              <Select
+                value={form.type}
+                disabled={!!editing}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    type: e.target.value as Coupon["type"],
+                  })
+                }
+                className="w-full"
+              >
                 <option value="percent">Percent off</option>
                 <option value="flat">Flat amount</option>
               </Select>
             </Field>
-            <Field label={form.type === "percent" ? "Percent (%)" : "Amount (₹)"}>
-              <TextInput type="number" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} />
+            <Field
+              label={form.type === "percent" ? "Percent (%)" : "Amount (₹)"}
+            >
+              <TextInput
+                type="number"
+                value={form.value}
+                onChange={(e) =>
+                  setForm({ ...form, value: e.target.value })
+                }
+              />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Min cart value (₹)"><TextInput type="number" value={form.minCartValue} onChange={(e) => setForm({ ...form, minCartValue: e.target.value })} /></Field>
-            <Field label="Usage limit"><TextInput type="number" value={form.usageLimit} onChange={(e) => setForm({ ...form, usageLimit: e.target.value })} /></Field>
+            <Field label="Min cart value (₹)">
+              <TextInput
+                type="number"
+                value={form.minCartValue}
+                onChange={(e) =>
+                  setForm({ ...form, minCartValue: e.target.value })
+                }
+              />
+            </Field>
+            <Field label="Usage limit">
+              <TextInput
+                type="number"
+                value={form.usageLimit}
+                onChange={(e) =>
+                  setForm({ ...form, usageLimit: e.target.value })
+                }
+              />
+            </Field>
           </div>
-          <Field label="Expiry date"><TextInput type="date" value={form.expiry} onChange={(e) => setForm({ ...form, expiry: e.target.value })} /></Field>
-          {formError && <p className="text-sm text-bad mb-3">{formError}</p>}
+          <Field label="Expiry date">
+            <TextInput
+              type="date"
+              value={form.expiry}
+              onChange={(e) =>
+                setForm({ ...form, expiry: e.target.value })
+              }
+            />
+          </Field>
+          {formError && (
+            <p className="text-sm text-bad mb-3">{formError}</p>
+          )}
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setDrawerOpen(false)}>Cancel</Button>
-            <Button type="submit" variant="primary" disabled={saving}>{saving ? "Saving…" : editing ? "Save changes" : "Create coupon"}</Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setDrawerOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={saving}
+            >
+              {saving
+                ? "Saving…"
+                : editing
+                  ? "Save changes"
+                  : "Create coupon"}
+            </Button>
           </div>
         </form>
       </Drawer>
@@ -162,5 +359,9 @@ function CouponsInner() {
 }
 
 export default function CouponsPage() {
-  return <PermissionGate perm="coupons.view"><CouponsInner /></PermissionGate>;
+  return (
+    <PermissionGate perm="coupon:manage">
+      <CouponsInner />
+    </PermissionGate>
+  );
 }

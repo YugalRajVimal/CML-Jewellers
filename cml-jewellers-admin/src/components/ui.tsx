@@ -53,6 +53,7 @@ const statusStyles: Record<string, string> = {
 };
 
 export function StatusPill({ status }: { status: string }) {
+
   return (
     <span className={clsx("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium", statusStyles[status] ?? "bg-ink-100 text-ink-700")}>
       {status.replace(/([a-z])([A-Z])/g, "$1 $2")}

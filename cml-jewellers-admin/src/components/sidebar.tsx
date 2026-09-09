@@ -15,45 +15,45 @@ interface NavItem { href: string; label: string; icon: React.ElementType; perm: 
 interface NavGroup { label: string; items: NavItem[] }
 
 const NAV: NavGroup[] = [
-  { label: "Overview", items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, perm: "dashboard.view" }] },
+  { label: "Overview", items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, perm: "dashboard:read" }] },
   {
     label: "Catalog",
     items: [
-      { href: "/products", label: "Products", icon: Gem, perm: "products.view" },
-      { href: "/categories", label: "Categories", icon: Layers, perm: "categories.view" },
-      { href: "/inventory", label: "Inventory", icon: Boxes, perm: "inventory.view" },
+      { href: "/products", label: "Products", icon: Gem, perm: "product:read" },
+      { href: "/categories", label: "Categories", icon: Layers, perm: "category:write" },
+      { href: "/inventory", label: "Inventory", icon: Boxes, perm: "inventory:read" },
     ],
   },
   {
     label: "Fulfilment",
     items: [
-      { href: "/purchases", label: "Purchases", icon: Truck, perm: "purchases.view" },
-      { href: "/orders", label: "Orders", icon: ShoppingBag, perm: "orders.view" },
-      { href: "/payments", label: "Payments", icon: CreditCard, perm: "payments.view" },
-      { href: "/returns", label: "Returns", icon: RotateCcw, perm: "returns.view" },
-      { href: "/refunds", label: "Refunds", icon: Wallet, perm: "refunds.view" },
+      { href: "/purchases", label: "Purchases", icon: Truck, perm: "purchase:manage" },
+      { href: "/orders", label: "Orders", icon: ShoppingBag, perm: "order:read" },
+      { href: "/payments", label: "Payments", icon: CreditCard, perm: "order:read" },
+      { href: "/returns", label: "Returns", icon: RotateCcw, perm: "return:manage" },
+      { href: "/refunds", label: "Refunds", icon: Wallet, perm: "refund:manage" },
     ],
   },
   {
     label: "Insights",
-    items: [{ href: "/sales", label: "Sales", icon: BarChart3, perm: "sales.view" }],
+    items: [{ href: "/sales", label: "Sales", icon: BarChart3, perm: "order:read" }],
   },
   {
     label: "Customers",
     items: [
-      { href: "/customers", label: "Customers", icon: Users, perm: "customers.view" },
-      { href: "/coupons", label: "Coupons", icon: TicketPercent, perm: "coupons.view" },
+      { href: "/customers", label: "Customers", icon: Users, perm: "customer:read" },
+      { href: "/coupons", label: "Coupons", icon: TicketPercent, perm: "coupon:manage" },
     ],
   },
   {
     label: "Storefront",
-    items: [{ href: "/content", label: "Homepage & banners", icon: ImageIcon, perm: "content.view" }],
+    items: [{ href: "/content", label: "Homepage & banners", icon: ImageIcon, perm: "content:manage" }],
   },
   {
     label: "System",
     items: [
-      { href: "/roles", label: "Admin users & roles", icon: ShieldCheck, perm: "roles.view" },
-      { href: "/audit-log", label: "Audit log", icon: ScrollText, perm: "audit.view" },
+      { href: "/roles", label: "Admin users & roles", icon: ShieldCheck, perm: "role:manage" },
+      { href: "/audit-log", label: "Audit log", icon: ScrollText, perm: "dashboard:read" },
     ],
   },
 ];
