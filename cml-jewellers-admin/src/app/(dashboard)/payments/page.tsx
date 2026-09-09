@@ -4,18 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CreditCard } from "lucide-react";
 import * as api from "@/lib/api";
-import { Payment } from "@/lib/types";
-import {
-  PageHeader,
-  StatusPill,
-  Toolbar,
-  SearchInput,
-  Select,
-  EmptyState,
-} from "@/components/ui";
+import { PageHeader, StatusPill, Toolbar, SearchInput, Select, EmptyState } from "@/components/ui";
 import { DataTable, Column } from "@/components/data-table";
 import { PermissionGate } from "@/components/permission-gate";
 
+// Util: format as INR currency
 function formatINR(n: number) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -24,19 +17,88 @@ function formatINR(n: number) {
   }).format(n);
 }
 
+// Our API returns nested order info under payment.orderId object, need to surface flattened fields for table
+type NormalizedPayment = {
+  _id: string;
+  orderId: string;             // order _id
+  orderNumber: string;         // from orderId.orderNumber
+  provider: string;
+  providerRefId: string;
+  cfPaymentSessionId?: string;
+  amount: number;
+  status: string;
+  verifiedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+function normalizePayments(data: unknown): NormalizedPayment[] {
+  // Defensive extraction for: { data: { payments: [ ... ] } }
+  if (
+    data &&
+    typeof data === "object" &&
+    "data" in data &&
+    data.data &&
+    typeof (data as any).data === "object" &&
+    "payments" in (data as any).data &&
+    Array.isArray((data as any).data.payments)
+  ) {
+    const paymentsArr: any[] = (data as any).data.payments;
+    return paymentsArr.map((p) => {
+      const order = p.orderId ?? {};
+      return {
+        _id: p._id,
+        orderId: (typeof order === "object" && order._id) ? order._id : typeof order === "string" ? order : "",
+        orderNumber: typeof order === "object" && order.orderNumber ? order.orderNumber : "",
+        provider: p.provider,
+        providerRefId: p.providerRefId,
+        cfPaymentSessionId: p.cfPaymentSessionId,
+        amount: p.amount,
+        status: p.status,
+        verifiedAt: p.verifiedAt,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+      };
+    });
+  }
+  // Defensive fallback: support legacy { payments: [ ... ] }
+  if (
+    data &&
+    typeof data === "object" &&
+    "payments" in data &&
+    Array.isArray((data as any).payments)
+  ) {
+    const paymentsArr: any[] = (data as any).payments;
+    return paymentsArr.map((p) => {
+      const order = p.orderId ?? {};
+      return {
+        _id: p._id,
+        orderId: (typeof order === "object" && order._id) ? order._id : typeof order === "string" ? order : "",
+        orderNumber: typeof order === "object" && order.orderNumber ? order.orderNumber : "",
+        provider: p.provider,
+        providerRefId: p.providerRefId,
+        cfPaymentSessionId: p.cfPaymentSessionId,
+        amount: p.amount,
+        status: p.status,
+        verifiedAt: p.verifiedAt,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+      };
+    });
+  }
+  // Fallback: empty array
+  return [];
+}
+
 function PaymentsInner() {
-  const [payments, setPayments] = useState<Payment[] | null>(null);
+  const [payments, setPayments] = useState<NormalizedPayment[] | null>(null);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
 
   useEffect(() => {
     api.listPayments().then((res) => {
-      console.log("Payments API response:", res); // Log the API response
-
-      // The API response is now: { success, message, data: { payments }, meta }
-      // So we must extract payments from res.data.payments
-      const _payments = Array.isArray(res?.data?.payments) ? res.data.payments : [];
-      setPayments(_payments);
+      // Expecting the shape you provided
+      setPayments(normalizePayments(res));
     });
   }, []);
 
@@ -44,12 +106,12 @@ function PaymentsInner() {
     if (!payments) return [];
     return payments.filter((p) => {
       if (status && p.status !== status) return false;
+
       if (
         q &&
         !(
           (p.orderNumber && p.orderNumber.toLowerCase().includes(q.toLowerCase())) ||
-          (p.providerRefId &&
-            p.providerRefId.toLowerCase().includes(q.toLowerCase()))
+          (p.providerRefId && p.providerRefId.toLowerCase().includes(q.toLowerCase()))
         )
       )
         return false;
@@ -57,19 +119,22 @@ function PaymentsInner() {
     });
   }, [payments, q, status]);
 
-  const columns: Column<Payment>[] = [
+  const columns: Column<NormalizedPayment>[] = [
     {
       key: "order",
       header: "Order",
       sortValue: (p) => p.orderNumber,
-      render: (p) => (
-        <Link
-          href={`/orders/${typeof p.orderId === "string" ? p.orderId : (p.orderId?._id || "")}`}
-          className="font-medium text-ink-900 hover:text-maroon-700"
-        >
-          {p.orderNumber}
-        </Link>
-      ),
+      render: (p) =>
+        p.orderId ? (
+          <Link
+            href={`/orders/${p.orderId}`}
+            className="font-medium text-ink-900 hover:text-maroon-700"
+          >
+            {p.orderNumber}
+          </Link>
+        ) : (
+          <span className="text-ink-500">—</span>
+        ),
     },
     {
       key: "provider",
@@ -138,11 +203,12 @@ function PaymentsInner() {
         />
       ) : (
         <DataTable
-          columns={columns}
-          rows={filtered}
+          columns={columns as any}
+          rows={filtered.map((p) => ({ ...p, id: p._id }))}
           loading={!payments}
           pageSize={8}
         />
+  
       )}
     </div>
   );

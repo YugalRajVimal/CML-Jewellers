@@ -20,11 +20,9 @@ const PERMISSION_GROUPS: { label: string; perms: Permission[] }[] = [
 ];
 
 function getUserId(u: any): string {
-  // Prefer _id then id
   return u._id || u.id;
 }
 function getRoleId(r: any): string {
-  // Prefer _id then id
   return r._id || r.id;
 }
 function getRoleName(r: any): string {
@@ -32,14 +30,10 @@ function getRoleName(r: any): string {
   return r.name || "";
 }
 function getRolePermissions(r: any): Permission[] {
-  // New response may nest permissions as array of objects, but old definition assumes array of strings
   if (!r) return [];
-  // try array of objects with "name" or just string array
-  // If r.permissions is array of strings, just return it
   if (Array.isArray(r.permissions) && typeof r.permissions[0] === "string") {
     return r.permissions;
   }
-  // If array of objects with a name property
   if (Array.isArray(r.permissions) && r.permissions[0]?.name) {
     return r.permissions.map((p: any) => p.name);
   }
@@ -53,7 +47,6 @@ function getRoleIsSystem(r: any): boolean {
   if (!r) return false;
   return !!r.isSystem;
 }
-
 
 function RolesInner() {
   const { can } = useAuth();
@@ -74,9 +67,17 @@ function RolesInner() {
   async function load() {
     const [uRes, rRes] = await Promise.all([api.listAdminUsers(), api.listRoles()]);
 
-    // For new API responses, data comes under .data.admins and .data.roles; fallback for old ones
-    const admins = Array.isArray(uRes.data?.admins) ? uRes.data.admins : (Array.isArray(uRes.data) ? uRes.data : []);
-    const roleList = Array.isArray(rRes.data?.roles) ? rRes.data.roles : (Array.isArray(rRes.data) ? rRes.data : []);
+    // Use .data only when it's not an array; otherwise, treat the response directly as an array.
+    const admins = Array.isArray(uRes.data)
+      ? uRes.data
+      : Array.isArray((uRes.data as any)?.admins)
+      ? (uRes.data as any).admins
+      : [];
+    const roleList = Array.isArray(rRes.data)
+      ? rRes.data
+      : Array.isArray((rRes.data as any)?.roles)
+      ? (rRes.data as any).roles
+      : [];
 
     console.log("Admin Users loaded:", uRes.data);
     console.log("Roles loaded:", rRes.data);
@@ -175,7 +176,6 @@ function RolesInner() {
           <div className="px-5 py-4 border-b border-line"><p className="text-sm font-medium text-ink-900">Admin users</p></div>
           <div className="divide-y divide-line">
             {users.map((u) => {
-              // The new admin user object: { ..., roleId : {_id: ..., name: ...} } or roleId: string
               let userRoleObj = undefined;
               if (u.roleId && typeof u.roleId === "object" && u.roleId._id) {
                 userRoleObj = roles.find((r) => getRoleId(r) === u.roleId._id);
@@ -193,7 +193,6 @@ function RolesInner() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-ink-500">
-                      {/* Try to display role name from embedded or from lookup */}
                       {typeof u.roleId === "object" && u.roleId.name ? u.roleId.name : getRoleName(userRoleObj)}
                     </span>
                     <StatusPill status={statusText} />

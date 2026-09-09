@@ -18,28 +18,70 @@ type AuditLogRow = {
   after?: any;
 };
 
+// DataTable expects objects with an 'id' field
+type DataTableRow = {
+  id: string;
+  actor: { name: string; email: string } | null;
+  action: string;
+  resource: string;
+  resourceId?: string;
+  createdAt: string;
+  ip?: string;
+  raw: AuditLogRow;
+};
+
+// Explicitly type possible API response shapes
+type AuditLogApiArrayResponse = { data: AuditLogRow[] };
+type AuditLogApiObjectResponse = { data: { logs: AuditLogRow[] } };
+type AuditLogApiResponse = AuditLogApiArrayResponse | AuditLogApiObjectResponse | { data: unknown } | undefined;
+
 function AuditLogInner() {
-  const [rows, setRows] = useState<AuditLogRow[] | null>(null);
+  const [rows, setRows] = useState<DataTableRow[] | null>(null);
 
   useEffect(() => {
-    api.listAuditLog().then((res) => {
+    api.listAuditLog().then((res: AuditLogApiResponse) => {
       console.log("Audit Log API response:", res);
-      // Backend: { success, message, data: { logs }, meta }
       // Defensive fallback in case of weird response
-      const logs = Array.isArray(res?.data?.logs) ? res.data.logs : [];
-      setRows(logs);
+      // API may sometimes return just an array of logs or an object containing logs
+      let logs: AuditLogRow[] = [];
+
+      // Safely narrow types to avoid 'logs' does not exist on 'never'
+      if (res && Array.isArray((res as AuditLogApiArrayResponse).data)) {
+        logs = (res as AuditLogApiArrayResponse).data;
+      } else if (res && res.data && typeof res.data === "object" && Array.isArray((res.data as any).logs)) {
+        logs = (res.data as { logs: AuditLogRow[] }).logs;
+      }
+
+      // Adapt shape for DataTable
+      const tableRows: DataTableRow[] = logs.map((log: AuditLogRow & { id?: string; actor?: string; entity?: string; entityId?: string }) => ({
+        id: log._id ?? log.id, // fallback for alternate API shape
+        actor: log.adminUserId
+          ? { name: log.adminUserId.name, email: log.adminUserId.email }
+          : log.actor
+            ? { name: log.actor, email: "" }
+            : null,
+        action: log.action,
+        resource: log.resource ?? log.entity ?? "",
+        resourceId: log.resourceId ?? log.entityId,
+        createdAt: log.createdAt,
+        ip: log.ip,
+        raw: log,
+      }));
+      setRows(tableRows);
     });
   }, []);
 
-  const columns: Column<AuditLogRow>[] = [
+  const columns: Column<DataTableRow>[] = [
     {
       key: "actor",
       header: "Actor",
       render: (r) =>
-        r.adminUserId ? (
+        r.actor ? (
           <span className="font-medium text-ink-900">
-            {r.adminUserId.name}
-            <span className="ml-2 text-xs text-ink-500">{r.adminUserId.email}</span>
+            {r.actor.name}
+            {r.actor.email && (
+              <span className="ml-2 text-xs text-ink-500">{r.actor.email}</span>
+            )}
           </span>
         ) : (
           <span className="text-ink-500">Unknown</span>
@@ -91,7 +133,6 @@ function AuditLogInner() {
         rows={rows ?? []}
         loading={!rows}
         pageSize={10}
-        rowKey="_id"
       />
     </div>
   );

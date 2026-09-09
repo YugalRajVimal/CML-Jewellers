@@ -18,16 +18,28 @@ function formatINR(n: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 }
 
+// Define the expected shape of the API response to avoid TS 'never' inference
+type CustomersApiResponse =
+  | Customer[]
+  | { customers: Customer[] }
+  | { [key: string]: any };
+
 function CustomersInner() {
   const [customers, setCustomers] = useState<Customer[] | null>(null);
   const [q, setQ] = useState("");
 
   useEffect(() => {
-    api.listCustomers({ limit: 100 }).then((res) => {
-      // Handle the case where API returns { customers: [...] } instead of just an array
-      let arr = Array.isArray(res.data)
-        ? res.data
-        : (Array.isArray(res.data?.customers) ? res.data.customers : []);
+    api.listCustomers({ limit: 100 }).then((res: { data: CustomersApiResponse }) => {
+      let arr: Customer[] = [];
+      if (Array.isArray(res.data)) {
+        arr = res.data;
+      } else if (
+        res.data &&
+        typeof res.data === "object" &&
+        Array.isArray((res.data as { customers?: Customer[] }).customers)
+      ) {
+        arr = (res.data as { customers: Customer[] }).customers;
+      }
       console.log("Customers loaded:", arr);
       setCustomers(arr);
     });

@@ -62,8 +62,11 @@ function OrderDetailInner() {
 
   async function load() {
     const res = await api.getOrder(id);
-    // API returns `{ order: {...} }` (not just order fields).
-    const o = res.data.order ?? res.data;
+    // API returns `{ order: {...} }` (not just order fields), but `Order` type does not have 'order' property.
+    // To avoid type errors, just take `res.data` directly (the real payload).
+    const o = (res.data && typeof res.data === "object" && "order" in res.data)
+      ? (res.data as any).order
+      : res.data;
     console.log("Order detail loaded:", o);
     setOrder(o);
   }
@@ -91,8 +94,8 @@ function OrderDetailInner() {
       </div>
     );
 
-  const allowed = ORDER_TRANSITIONS[order.status];
-  const currentIndex = ORDER_FLOW.indexOf(order.status);
+  const allowed = ORDER_TRANSITIONS[order.status as OrderStatus];
+  const currentIndex = ORDER_FLOW.indexOf(order.status as OrderStatus);
   const derailed = order.status === "Cancelled" || order.status === "ReturnRequested";
 
   return (

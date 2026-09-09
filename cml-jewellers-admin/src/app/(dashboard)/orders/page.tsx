@@ -46,16 +46,37 @@ function getOrderItemsCount(order: any): number {
   return order.items.reduce((s: number, i: any) => s + (typeof i.qty === "number" ? i.qty : 0), 0);
 }
 
+// Define a minimal type to ensure TypeScript doesn't treat res.data as "never"
+type ListOrdersApiResponse =
+  | { orders: Order[] }
+  | { data: { orders: Order[] } }
+  | { data: Order[] }
+  | { data?: unknown }
+  | { [key: string]: unknown };
+
 function OrdersInner() {
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
 
   useEffect(() => {
-    api.listOrders({ limit: 100 }).then((res) => {
+    api.listOrders({ limit: 100 }).then((res: ListOrdersApiResponse) => {
       // The data from API is shaped as { orders: [...] } or { data: { orders: [...] } } or { data: [...] }
-      // From prompt, it's res.data.orders (array) or just res.data (array) - check for both.
-      let orderList = Array.isArray(res.data) ? res.data : (Array.isArray(res.data.orders) ? res.data.orders : []);
+      // Try to satisfy TS by using type checks + 'as' casting
+      let orderList: Order[] = [];
+
+      if (Array.isArray((res as any).data)) {
+        orderList = (res as { data: Order[] }).data;
+      } else if (
+        typeof (res as any).data === "object" &&
+        (res as any).data !== null &&
+        Array.isArray((res as any).data.orders)
+      ) {
+        orderList = (res as { data: { orders: Order[] } }).data.orders;
+      } else if (Array.isArray((res as any).orders)) {
+        orderList = (res as { orders: Order[] }).orders;
+      }
+
       setOrders(orderList);
     });
   }, []);

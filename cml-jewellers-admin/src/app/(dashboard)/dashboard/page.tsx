@@ -48,6 +48,29 @@ type LowStockRow = {
   __v: number;
 };
 
+type InventoryRow = {
+  // Minimum properties needed to convert to LowStockRow, plus possible extra fields
+  _id: string;
+  variantId: {
+    _id: string;
+    productId: string;
+    sku: string;
+    attributes?: {
+      size?: string;
+    };
+  };
+  available: number;
+  reserved: number;
+  sold: number;
+  damaged: number;
+  returned: number;
+  lowStockThreshold: number;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+  // ...other properties (possibly present on InventoryRow)
+};
+
 type RecentOrder = {
   _id: string;
   orderNumber?: string;
@@ -83,7 +106,35 @@ export default function DashboardPage() {
         // Adapt API response
         if (!cancelled) {
           if (res && res.data) {
-            setData(res.data);
+            // Workaround: Convert InventoryRow[] to LowStockRow[]
+            const raw = res.data;
+
+            // Defensive type assertion; adapt objects if needed
+            const lowStockRows: LowStockRow[] = Array.isArray(raw.lowStockRows)
+              ? raw.lowStockRows.map((row: any) => {
+                  // Only keep properties defined in LowStockRow type
+                  return {
+                    _id: row._id,
+                    variantId: row.variantId,
+                    available: row.available,
+                    reserved: row.reserved,
+                    sold: row.sold,
+                    damaged: row.damaged,
+                    returned: row.returned,
+                    lowStockThreshold: row.lowStockThreshold,
+                    createdAt: row.createdAt,
+                    updatedAt: row.updatedAt,
+                    __v: row.__v,
+                  } as LowStockRow;
+                })
+              : [];
+
+            setData({
+              stats: raw.stats,
+              trend: raw.trend,
+              recentOrders: raw.recentOrders,
+              lowStockRows,
+            });
           }
         }
       })

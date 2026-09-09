@@ -8,24 +8,117 @@ import { Drawer, Field, TextInput } from "@/components/drawer";
 import { PermissionGate } from "@/components/permission-gate";
 import { useAuth } from "@/lib/auth";
 
+// Import the types used from your canonical types location.
+import type { Supplier as ApiSupplier, Purchase as ApiPurchase } from "@/lib/types";
+
+// Explicit address/contact types instead of inline object types
+type SupplierContact = {
+  contactPerson?: string;
+  email?: string;
+  phone?: string;
+};
+
+type SupplierAddress = {
+  line1?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  pincode?: string;
+};
+
+// Local uses MUST extend backend types to ensure runtime fields.
+type Supplier = Omit<ApiSupplier, "contact" | "address"> & {
+  _id: string;
+  name: string;
+  contact?: SupplierContact;
+  address?: SupplierAddress;
+};
+
+type PurchaseItem = {
+  variantId?: string;
+  sku?: string;
+  orderedQty: number;
+  receivedQty?: number;
+  cost: number;
+};
+
+type Purchase = ApiPurchase & {
+  _id: string;
+  purchaseNumber: string;
+  supplierId: string;
+  createdAt: string;
+  notes?: string;
+  status: string;
+  items?: PurchaseItem[];
+};
+
+type ListPurchasesResponse =
+  | Purchase[]
+  | { purchases: Purchase[] }
+  | ApiPurchase[]
+  | { purchases: ApiPurchase[] }
+  | undefined;
+
+type ListSuppliersResponse =
+  | Supplier[]
+  | { suppliers: Supplier[] }
+  | ApiSupplier[]
+  | { suppliers: ApiSupplier[] }
+  | undefined;
+
+interface LineItem { sku: string; orderedQty: string; cost: string }
+
+// Helper to convert possibly-shape-mismatched "raw" supplier from backend to local
+function toSupplier(raw: ApiSupplier): Supplier {
+  return {
+    ...raw,
+    _id: (raw as any)._id ?? (raw as any).id ?? "",
+    name: raw.name,
+    contact: raw.contact as SupplierContact | undefined,
+    address: raw.address as SupplierAddress | undefined,
+  };
+}
+function toPurchase(raw: ApiPurchase): Purchase {
+  return {
+    ...raw,
+    _id: (raw as any)._id ?? (raw as any).id ?? "",
+    purchaseNumber: (raw as any).purchaseNumber ?? "",
+    supplierId: (raw as any).supplierId ?? "",
+    createdAt: (raw as any).createdAt ?? "",
+    notes: (raw as any).notes,
+    status: (raw as any).status ?? "",
+    items: (raw as any).items ?? [],
+  };
+}
+
 // Format INR as currency
 function formatINR(n: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 }
 
-// Line item for new purchase order creation
-interface LineItem { sku: string; orderedQty: string; cost: string }
-
 function PurchasesInner() {
   const { can } = useAuth();
-  // The loaded data will have different field names & shapes than before
-  const [purchases, setPurchases] = useState<any[] | null>(null);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
+
+  const [purchases, setPurchases] = useState<Purchase[] | null>(null);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
   const [supplierDrawerOpen, setSupplierDrawerOpen] = useState(false);
-  // supplierForm changed to match the input shape, but we'll pass it as required on create
-  const [supplierForm, setSupplierForm] = useState({ name: "", contactPerson: "", email: "", phone: "", address: { line1: "", city: "", state: "", country: "", pincode: "" } });
+  // NO spread type in state, explicitly typed SupplierForm
+  type SupplierForm = {
+    name: string;
+    contactPerson?: string;
+    email?: string;
+    phone?: string;
+    address: SupplierAddress;
+  };
+  const [supplierForm, setSupplierForm] = useState<SupplierForm>({
+    name: "",
+    contactPerson: "",
+    email: "",
+    phone: "",
+    address: { line1: "", city: "", state: "", country: "", pincode: "" }
+  });
   const [supplierError, setSupplierError] = useState<string | null>(null);
   const [savingSupplier, setSavingSupplier] = useState(false);
 
@@ -37,13 +130,25 @@ function PurchasesInner() {
 
   // Data loader (mapping backend shape to what we show)
   async function load() {
-    const [{ data: poResp }, { data: supResp }] = await Promise.all([
-      api.listPurchases(), // { purchases: [...] }
-      api.listSuppliers(), // { suppliers: [...] }
+    const [{ data: poRespData }, { data: supRespData }] = await Promise.all([
+      api.listPurchases(), // Purchase[] or { purchases: Purchase[] }
+      api.listSuppliers(), // Supplier[] or { suppliers: Supplier[] }
     ]);
-    // Defensive: check prop names from sample structure
-    setPurchases(poResp.purchases || []);
-    setSuppliers(supResp.suppliers || []);
+    // Coerce results to arrays for consistency, remap types appropriately
+    let poArr: Purchase[] = [];
+    if (Array.isArray(poRespData)) {
+      poArr = poRespData.map(toPurchase);
+    } else if (poRespData && typeof poRespData === "object" && "purchases" in poRespData && Array.isArray((poRespData as any).purchases)) {
+      poArr = ((poRespData as any).purchases as ApiPurchase[]).map(toPurchase);
+    }
+    let supArr: Supplier[] = [];
+    if (Array.isArray(supRespData)) {
+      supArr = supRespData.map(toSupplier);
+    } else if (supRespData && typeof supRespData === "object" && "suppliers" in supRespData && Array.isArray((supRespData as any).suppliers)) {
+      supArr = ((supRespData as any).suppliers as ApiSupplier[]).map(toSupplier);
+    }
+    setPurchases(poArr);
+    setSuppliers(supArr);
   }
 
   useEffect(() => { load(); }, []);
@@ -61,25 +166,34 @@ function PurchasesInner() {
   async function submitSupplier(e: React.FormEvent) {
     e.preventDefault();
     setSupplierError(null);
-    // Require at least name
     if (!supplierForm.name.trim()) { setSupplierError("Supplier name is required."); return; }
     setSavingSupplier(true);
     try {
-      // Only required supplier creation fields
+      // Compose contact and address as strings for API compatibility
+      const contactParts: string[] = [];
+      if (supplierForm.contactPerson) contactParts.push(supplierForm.contactPerson);
+      if (supplierForm.phone) contactParts.push(supplierForm.phone);
+      if (supplierForm.email) contactParts.push(supplierForm.email);
+      const addressParts: string[] = [];
+      if (supplierForm.address?.line1) addressParts.push(supplierForm.address.line1);
+      if (supplierForm.address?.city) addressParts.push(supplierForm.address.city);
+      if (supplierForm.address?.state) addressParts.push(supplierForm.address.state);
+      if (supplierForm.address?.country) addressParts.push(supplierForm.address.country);
+      if (supplierForm.address?.pincode) addressParts.push(supplierForm.address.pincode);
       const payload = {
         name: supplierForm.name,
-        contact: {
-          contactPerson: supplierForm.contactPerson,
-          email: supplierForm.email,
-          phone: supplierForm.phone,
-        },
-        address: {
-          ...supplierForm.address,
-        },
+        contact: contactParts.join(", "),
+        address: addressParts.join(", "),
       };
       await api.createSupplier(payload);
       setSupplierDrawerOpen(false);
-      setSupplierForm({ name: "", contactPerson: "", email: "", phone: "", address: { line1: "", city: "", state: "", country: "", pincode: "" } });
+      setSupplierForm({
+        name: "",
+        contactPerson: "",
+        email: "",
+        phone: "",
+        address: { line1: "", city: "", state: "", country: "", pincode: "" }
+      });
       await load();
     } catch (e) {
       setSupplierError(e instanceof Error ? e.message : "Could not add supplier.");
@@ -112,7 +226,7 @@ function PurchasesInner() {
       await api.createPurchase({
         supplierId: poSupplierId,
         items: cleaned.map((i) => ({
-          variantId: i.sku.trim(),
+          sku: i.sku.trim(),
           orderedQty: Number(i.orderedQty),
           cost: Number(i.cost || 0)
         })),
@@ -133,9 +247,8 @@ function PurchasesInner() {
   }
 
   // Helper: Compose supplier address string
-  function supplierAddress(addr: any) {
+  function supplierAddress(addr: SupplierAddress | undefined) {
     if (!addr) return "";
-    // e.g. "Zaveri Bazaar, Mumbai, Maharashtra, India 400002"
     return [
       addr.line1,
       addr.city,
@@ -146,15 +259,17 @@ function PurchasesInner() {
   }
 
   // Helper: Compose supplier contact
-  function supplierContact(contact: any) {
+  function supplierContact(contact: SupplierContact | undefined) {
     if (!contact) return "";
-    // e.g. "Anil Shah (+919822222222), sales@mumbaigems.example"
     return [
       contact.contactPerson ? contact.contactPerson : null,
       contact.phone ? contact.phone : null,
       contact.email ? contact.email : null,
     ].filter(Boolean).join(", ");
   }
+
+  // Defensive: ensure .map will not throw if purchases is not array
+  const hasPurchases = Array.isArray(purchases) && purchases.length > 0;
 
   return (
     <div>
@@ -167,11 +282,12 @@ function PurchasesInner() {
 
       <div className="grid lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-3">
-          {!purchases && <Panel className="p-8 text-center text-sm text-ink-500">Loading…</Panel>}
-          {purchases?.length === 0 && <Panel className="p-8 text-center text-sm text-ink-500">No purchase orders yet.</Panel>}
-          {purchases?.map((po: any) => {
-            // We'll use purchaseNumber as display ID and _id for keys/calls in new data
-            const pending = po.items.reduce((s: number, i: any) => s + (i.orderedQty - (i.receivedQty ?? 0)), 0);
+          {!Array.isArray(purchases) && <Panel className="p-8 text-center text-sm text-ink-500">Loading…</Panel>}
+          {Array.isArray(purchases) && purchases.length === 0 && <Panel className="p-8 text-center text-sm text-ink-500">No purchase orders yet.</Panel>}
+          {Array.isArray(purchases) && purchases.map((po) => {
+            const pending = po.items?.reduce
+              ? po.items.reduce((s: number, i: any) => s + (i.orderedQty - (i.receivedQty ?? 0)), 0)
+              : 0;
             return (
               <Panel key={po._id} className="p-4">
                 <div className="flex items-center justify-between">
@@ -193,7 +309,7 @@ function PurchasesInner() {
                       </tr>
                     </thead>
                     <tbody>
-                      {po.items.map((item: any, idx: number) => (
+                      {po.items?.map?.((item: PurchaseItem, idx: number) => (
                         <tr key={item.variantId || item.sku || idx} className="border-t border-line">
                           <td className="px-3 py-1.5 font-mono text-xs">{item.variantId || item.sku}</td>
                           <td className="px-3 py-1.5 text-right">{item.orderedQty}</td>
@@ -224,7 +340,7 @@ function PurchasesInner() {
             )}
           </div>
           <ul className="space-y-3">
-            {suppliers.map((s) => (
+            {Array.isArray(suppliers) && suppliers.map((s) => (
               <li key={s._id} className="text-sm border-b border-line last:border-0 pb-3 last:pb-0">
                 <p className="font-medium text-ink-900">{s.name}</p>
                 <p className="text-xs text-ink-500">{supplierContact(s.contact)}</p>
@@ -241,31 +357,31 @@ function PurchasesInner() {
             <TextInput value={supplierForm.name} onChange={e => setSupplierForm({ ...supplierForm, name: e.target.value })} />
           </Field>
           <Field label="Contact person">
-            <TextInput value={supplierForm.contactPerson} onChange={e => setSupplierForm({ ...supplierForm, contactPerson: e.target.value })} />
+            <TextInput value={supplierForm.contactPerson ?? ""} onChange={e => setSupplierForm({ ...supplierForm, contactPerson: e.target.value })} />
           </Field>
           <Field label="Contact number">
-            <TextInput value={supplierForm.phone} onChange={e => setSupplierForm({ ...supplierForm, phone: e.target.value })} placeholder="+91 …" />
+            <TextInput value={supplierForm.phone ?? ""} onChange={e => setSupplierForm({ ...supplierForm, phone: e.target.value })} placeholder="+91 …" />
           </Field>
           <Field label="Email">
-            <TextInput value={supplierForm.email} onChange={e => setSupplierForm({ ...supplierForm, email: e.target.value })} />
+            <TextInput value={supplierForm.email ?? ""} onChange={e => setSupplierForm({ ...supplierForm, email: e.target.value })} />
           </Field>
           <Field label="Address line 1">
-            <TextInput value={supplierForm.address.line1} onChange={e => setSupplierForm({ ...supplierForm, address: { ...supplierForm.address, line1: e.target.value }})} />
+            <TextInput value={supplierForm.address.line1 ?? ""} onChange={e => setSupplierForm({ ...supplierForm, address: { ...supplierForm.address, line1: e.target.value }})} />
           </Field>
           <div className="grid grid-cols-2 gap-2">
             <Field label="City">
-              <TextInput value={supplierForm.address.city} onChange={e => setSupplierForm({ ...supplierForm, address: { ...supplierForm.address, city: e.target.value } })} />
+              <TextInput value={supplierForm.address.city ?? ""} onChange={e => setSupplierForm({ ...supplierForm, address: { ...supplierForm.address, city: e.target.value } })} />
             </Field>
             <Field label="State">
-              <TextInput value={supplierForm.address.state} onChange={e => setSupplierForm({ ...supplierForm, address: { ...supplierForm.address, state: e.target.value } })} />
+              <TextInput value={supplierForm.address.state ?? ""} onChange={e => setSupplierForm({ ...supplierForm, address: { ...supplierForm.address, state: e.target.value } })} />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <Field label="Country">
-              <TextInput value={supplierForm.address.country} onChange={e => setSupplierForm({ ...supplierForm, address: { ...supplierForm.address, country: e.target.value } })} />
+              <TextInput value={supplierForm.address.country ?? ""} onChange={e => setSupplierForm({ ...supplierForm, address: { ...supplierForm.address, country: e.target.value } })} />
             </Field>
             <Field label="Pincode">
-              <TextInput value={supplierForm.address.pincode} onChange={e => setSupplierForm({ ...supplierForm, address: { ...supplierForm.address, pincode: e.target.value } })} />
+              <TextInput value={supplierForm.address.pincode ?? ""} onChange={e => setSupplierForm({ ...supplierForm, address: { ...supplierForm.address, pincode: e.target.value } })} />
             </Field>
           </div>
           {supplierError && <p className="text-sm text-bad mb-3">{supplierError}</p>}
@@ -280,7 +396,7 @@ function PurchasesInner() {
         <form onSubmit={submitPo}>
           <Field label="Supplier">
             <Select value={poSupplierId} onChange={(e) => setPoSupplierId(e.target.value)} className="w-full">
-              {suppliers.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
+              {Array.isArray(suppliers) && suppliers.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
             </Select>
           </Field>
           <p className="text-xs font-medium text-ink-700 mb-1.5">Line items</p>

@@ -54,34 +54,35 @@ function ProductDetailInner() {
   async function load() {
     try {
       const res = await api.getProduct(id); // expects { product, variants }
-      if (res.data && res.data.product) {
-        setProduct(res.data.product);
-        setVariants(Array.isArray(res.data.variants) ? res.data.variants : []);
+      // ---- FIX: don't assign res.data.product to a variable typed Product, just Product
+      const loadedProduct = res.data && (res.data as any).product ? (res.data as any).product as Product : null;
+      if (loadedProduct) {
+        setProduct(loadedProduct);
+        setVariants(Array.isArray((res.data as any).variants) ? (res.data as any).variants : []);
         const cats = await api.listCategories();
 
-        // SET categories CORRECTLY from new API shape:
-        // {success: true, message: "...", data: {categories: Category[]}}
+        // Correctly extract Category array from cats.data.categories, not cats.data.product or cats.data.categories.categories!
         if (
           cats &&
           cats.data &&
           typeof cats.data === "object" &&
-          Array.isArray(cats.data.categories)
+          Array.isArray((cats.data as any).categories) // Explicitly extract .categories, not categories.categories
         ) {
-          setCategories(cats.data.categories);
+          setCategories((cats.data as any).categories);
         } else {
           setCategories([]);
         }
 
         setForm({
-          name: res.data.product.name,
-          categoryId: res.data.product.categoryId,
-          basePrice: String(res.data.product.basePrice),
-          mrp: String(res.data.product.mrp),
-          status: res.data.product.status,
+          name: loadedProduct.name,
+          categoryId: loadedProduct.categoryId,
+          basePrice: String(loadedProduct.basePrice),
+          mrp: String(loadedProduct.mrp),
+          status: loadedProduct.status,
         });
         setImageUrl(
-          Array.isArray(res.data.product.images) && res.data.product.images.length > 0
-            ? res.data.product.images[0]
+          Array.isArray(loadedProduct.images) && loadedProduct.images.length > 0
+            ? loadedProduct.images[0]
             : null
         );
       } else {
@@ -122,8 +123,6 @@ function ProductDetailInner() {
 
   function closeEdit() {
     setEditOpen(false);
-    // Discard any uploaded-but-unsaved image so the display panel doesn't
-    // show a Cloudinary upload that was never actually saved to the product.
     setImageUrl(
       Array.isArray(product?.images) && product.images.length > 0 ? product.images[0] : null
     );
@@ -143,8 +142,8 @@ function ProductDetailInner() {
   const category = Array.isArray(categories)
     ? categories.find((c: any) =>
         // Support both old types (`id`) and new (`_id`) for compatibility
-        (c.id === (product?.categoryId ?? product?.category_id)) ||
-        (c._id === (product?.categoryId ?? product?.category_id)) // New API likely returns _id
+        (c.id === (product?.categoryId ?? (product as any)?.category_id)) ||
+        (c._id === (product?.categoryId ?? (product as any)?.category_id)) // New API likely returns _id
       ) ?? null
     : null;
 

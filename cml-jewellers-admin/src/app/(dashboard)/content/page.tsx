@@ -51,15 +51,30 @@ function ContentInner() {
   async function load() {
     const [bRes, sRes] = await Promise.all([api.listBanners(), api.listHomepageSections()]);
 
-    // Defensive: handle {banners: [...]}, {sections: [...]}, and possible direct arrays
-    let bannersArr: any[] =
-      Array.isArray(bRes.data)
-        ? bRes.data
-        : (Array.isArray(bRes.data?.banners) ? bRes.data.banners : []);
-    let sectionsArr: any[] =
-      Array.isArray(sRes.data)
-        ? sRes.data
-        : (Array.isArray(sRes.data?.sections) ? sRes.data.sections : []);
+    // Defensive: handle both {banners:[...]} | [ ... ] | {data:{}}
+    let bannersArr: any[] = [];
+    if (Array.isArray(bRes.data)) {
+      bannersArr = bRes.data;
+    } else if (
+      bRes.data &&
+      typeof bRes.data === "object" &&
+      "banners" in bRes.data &&
+      Array.isArray((bRes.data as any).banners)
+    ) {
+      bannersArr = (bRes.data as any).banners;
+    }
+
+    let sectionsArr: any[] = [];
+    if (Array.isArray(sRes.data)) {
+      sectionsArr = sRes.data;
+    } else if (
+      sRes.data &&
+      typeof sRes.data === "object" &&
+      "sections" in sRes.data &&
+      Array.isArray((sRes.data as any).sections)
+    ) {
+      sectionsArr = (sRes.data as any).sections;
+    }
 
     console.log("Banners loaded:", bannersArr);
     console.log("Homepage sections loaded:", sectionsArr);
@@ -67,6 +82,7 @@ function ContentInner() {
     setBanners(bannersArr);
     setSections(sectionsArr);
   }
+
   useEffect(() => { load(); }, []);
 
   async function toggleBanner(id: string) {

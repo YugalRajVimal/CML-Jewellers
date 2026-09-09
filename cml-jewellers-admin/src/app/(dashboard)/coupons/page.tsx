@@ -15,7 +15,11 @@ function getCouponId(c: any): string {
   return c.id || c._id || "";
 }
 function getCouponUsed(c: any): number {
-  return typeof c.used === "number" ? c.used : (typeof c.usedCount === "number" ? c.usedCount : 0);
+  return typeof c.used === "number"
+    ? c.used
+    : typeof c.usedCount === "number"
+    ? c.usedCount
+    : 0;
 }
 function getCouponUsageLimit(c: any): number {
   return typeof c.usageLimit === "number" ? c.usageLimit : 0;
@@ -44,15 +48,20 @@ function CouponsInner() {
     const res = await api.listCoupons();
     // Handle the response as an object with coupons array
     // Defensive shape handling for new/old API responses
-    let arr: Coupon[] =
-      Array.isArray(res.data)
-        ? res.data
-        : (Array.isArray(res.data?.coupons)
-            ? res.data.coupons
-            : []);
+    let arr: Coupon[] = [];
+    if (Array.isArray(res.data)) {
+      arr = res.data as Coupon[];
+    } else if (
+      res.data &&
+      typeof res.data === "object" &&
+      Array.isArray((res.data as any)["coupons"])
+    ) {
+      arr = (res.data as { coupons: Coupon[] }).coupons;
+    }
     console.log("Coupons loaded:", arr);
     setCoupons(arr);
   }
+
   useEffect(() => {
     load();
   }, []);
@@ -139,9 +148,7 @@ function CouponsInner() {
       key: "value",
       header: "Discount",
       render: (c) =>
-        c.type === "percent"
-          ? `${c.value}% off`
-          : `₹${c.value} flat`,
+        c.type === "percent" ? `${c.value}% off` : `₹${c.value} flat`,
     },
     {
       key: "min",
@@ -157,17 +164,14 @@ function CouponsInner() {
       header: "Used",
       align: "right",
       sortValue: (c) => getCouponUsed(c),
-      render: (c) =>
-        `${getCouponUsed(c)} / ${getCouponUsageLimit(c)}`,
+      render: (c) => `${getCouponUsed(c)} / ${getCouponUsageLimit(c)}`,
     },
     {
       key: "expiry",
       header: "Expires",
       sortValue: (c) => c.expiry,
       render: (c) =>
-        c.expiry
-          ? new Date(c.expiry).toLocaleDateString()
-          : "—",
+        c.expiry ? new Date(c.expiry).toLocaleDateString() : "—",
     },
     {
       key: "status",
@@ -340,16 +344,12 @@ function CouponsInner() {
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={saving}
-            >
+            <Button type="submit" variant="primary" disabled={saving}>
               {saving
                 ? "Saving…"
                 : editing
-                  ? "Save changes"
-                  : "Create coupon"}
+                ? "Save changes"
+                : "Create coupon"}
             </Button>
           </div>
         </form>

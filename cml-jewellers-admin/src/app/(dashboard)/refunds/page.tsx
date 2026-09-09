@@ -35,10 +35,19 @@ function RefundsInner() {
     const res = await api.listRefunds();
     // Shape of res.data: { refunds: [...] } or sometimes just { ... }
     // Defensive shape handling for API: Accept .refunds array or .data array fallback, or [].
-    let refundArr: Refund[] =
-      Array.isArray(res.data)
-        ? res.data
-        : (Array.isArray(res.data?.refunds) ? res.data.refunds : []);
+    let refundArr: Refund[] = [];
+
+    if (Array.isArray(res.data)) {
+      refundArr = res.data;
+    } else if (
+      res.data &&
+      typeof res.data === "object" &&
+      "refunds" in res.data &&
+      Array.isArray((res.data as { refunds?: unknown }).refunds)
+    ) {
+      refundArr = (res.data as { refunds: Refund[] }).refunds;
+    }
+
     console.log("Refunds loaded:", refundArr);
     setRefunds(refundArr);
   }

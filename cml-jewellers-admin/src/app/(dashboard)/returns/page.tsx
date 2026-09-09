@@ -38,12 +38,21 @@ function ReturnsInner() {
 
   async function load() {
     const res = await api.listReturns();
+    console.log("Returns API response:", res);
     // The response shape has {returns: [...]}, but sometimes it might be {data: ...}
-    // Accept both, but prioritize .returns if present.
-    let returnArr: any[] =
-      Array.isArray(res.data)
-        ? res.data
-        : (Array.isArray(res.data?.returns) ? res.data.returns : []);
+    // Accept both, but safely check for .returns property existence instead of using ?.returns on a potentially never-typed object. 
+    let returnArr: any[] = [];
+    if (Array.isArray(res.data)) {
+      returnArr = res.data;
+    } else if (
+      res.data &&
+      typeof res.data === "object" &&
+      "returns" in res.data &&
+      Array.isArray((res.data as any).returns)
+    ) {
+      returnArr = (res.data as any).returns;
+    }
+    console.log("Loaded returns array:", returnArr);
     setReturns(returnArr);
   }
 
@@ -86,7 +95,10 @@ function ReturnsInner() {
       )}
       <div className="space-y-3">
         {returns?.map((r) => {
-          const allowed = RETURN_TRANSITIONS[r.status] || [];
+          // Fix type error for RETURN_TRANSITIONS indexing: ensure r.status is ReturnStatus
+          const allowed = r && typeof r.status === "string" && r.status in RETURN_TRANSITIONS
+            ? RETURN_TRANSITIONS[r.status as ReturnStatus] || []
+            : [];
           return (
             <Panel key={getReturnId(r)} className="p-4">
               <div className="flex items-center justify-between">
