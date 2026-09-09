@@ -19,6 +19,9 @@ export const PERMISSIONS = {
   ADMIN_USER_MANAGE: 'admin_user:manage',
   ROLE_MANAGE: 'role:manage',
   DASHBOARD_READ: 'dashboard:read',
+  PAYMENT_READ: 'payment:read',
+  SALES_READ: 'sales:read',
+  AUDIT_READ: 'audit:read',
 } as const;
 
 export type PermissionKey = keyof typeof PERMISSIONS;

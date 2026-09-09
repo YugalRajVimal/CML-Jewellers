@@ -17,6 +17,9 @@ import adminUserRoutes from './adminUser.routes';
 import roleRoutes from './role.routes';
 import dashboardRoutes from './dashboard.routes';
 import reviewRoutes from './review.routes';
+import paymentAdminRoutes from './paymentAdmin.routes';
+import salesRoutes from './sales.routes';
+import auditLogRoutes from './auditLog.routes';
 
 const router = Router();
 
@@ -38,5 +41,12 @@ router.use('/users', adminUserRoutes);
 router.use('/roles', roleRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/reviews', reviewRoutes);
+router.use('/payments', paymentAdminRoutes);
+router.use('/sales', salesRoutes);
+router.use('/audit-log', auditLogRoutes);
+
+router.use((req, res) => {
+    res.status(404).json({ success: false, message: 'Not found', error: { code: 'NOT_FOUND' } });
+  });
 
 export default router;
