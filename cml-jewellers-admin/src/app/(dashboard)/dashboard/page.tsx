@@ -16,8 +16,23 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [data, setData] = useState<Awaited<ReturnType<typeof api.getDashboard>>["data"] | null>(null);
 
+  // useEffect(() => {
+  //   api.getDashboard().then((res) => setData(res.data));
+  // }, []);
+
   useEffect(() => {
-    api.getDashboard().then((res) => setData(res.data));
+    let cancelled = false;
+    api.getDashboard()
+      .then((res) => { if (!cancelled) setData(res.data); })
+      .catch((e) => {
+        // 401 is already handled globally (unauthorizedHandler clears the
+        // session and the layout redirects to /login) — just avoid an
+        // unhandled rejection here.
+        if (!(e instanceof api.ApiRequestError && e.status === 401)) {
+          console.error("Failed to load dashboard", e);
+        }
+      });
+    return () => { cancelled = true; };
   }, []);
 
   return (

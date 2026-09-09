@@ -222,6 +222,8 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<ApiRe
   };
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
+  console.log(accessToken)
+
   let res: Response;
   try {
     res = await fetch(url, { ...options, headers });

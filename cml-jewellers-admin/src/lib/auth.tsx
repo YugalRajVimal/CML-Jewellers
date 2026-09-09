@@ -216,21 +216,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<Role | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // useEffect(() => {
+  //   const token = loadPersistedToken();
+  //   const raw = window.localStorage.getItem(SESSION_CACHE_KEY);
+  //   if (token && raw) {
+  //     try {
+  //       const cached = JSON.parse(raw) as { user: AdminUser; role: Role };
+  //       setUser(cached.user);
+  //       setRole(cached.role);
+  //       setStatus("authed");
+  //     } catch {
+  //       setStatus("guest");
+  //     }
+  //   } else {
+  //     setStatus("guest");
+  //   }
+  // }, []);
+
   useEffect(() => {
-    const token = loadPersistedToken();
-    const raw = window.localStorage.getItem(SESSION_CACHE_KEY);
-    if (token && raw) {
+    let cancelled = false;
+  
+    async function bootstrap() {
+      const token = loadPersistedToken();
+      const raw = window.localStorage.getItem(SESSION_CACHE_KEY);
+  
+      if (!token || !raw) {
+        setStatus("guest");
+        return;
+      }
+  
+      // Don't trust the cached session blindly — confirm the token is
+      // still valid (right audience, not expired/revoked) before painting
+      // an authed UI. api.me() should hit a lightweight admin-authed route.
       try {
-        const cached = JSON.parse(raw) as { user: AdminUser; role: Role };
-        setUser(cached.user);
-        setRole(cached.role);
+        const session = await api.me();
+        if (cancelled) return;
+        setUser(session.user);
+        setRole(session.role);
         setStatus("authed");
+        window.localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
       } catch {
+        if (cancelled) return;
+        setAccessToken(null);
+        window.localStorage.removeItem(SESSION_CACHE_KEY);
         setStatus("guest");
       }
-    } else {
-      setStatus("guest");
     }
+  
+    bootstrap();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -246,16 +280,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     setError(null);
     try {
-      console.log("[auth] Attempting login with", email);
       const res = await api.login(email, password);
-      console.log("[auth] Login successful, user:", res.data.user, "role:", res.data.role);
       setUser(res.data.user);
       setRole(res.data.role);
       setStatus("authed");
       window.localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({ user: res.data.user, role: res.data.role }));
     } catch (e) {
       const message = e instanceof api.ApiRequestError ? e.message : "Something went wrong. Try again.";
-      console.log("[auth] Login error:", e);
       setError(message);
       throw e;
     }

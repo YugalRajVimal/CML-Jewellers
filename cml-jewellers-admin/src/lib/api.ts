@@ -1932,13 +1932,49 @@ export async function logout(): Promise<void> {
 // Dashboard
 // ---------------------------------------------------------------------------
 
+// export async function getDashboard() {
+//   return http.get<{
+//     stats: { revenue30d: number; orders30d: number; customers: number; openOrders: number; lowStock: number; pendingReturns: number };
+//     trend: { label: string; revenue: number; orders: number }[];
+//     recentOrders: Order[];
+//     lowStockRows: InventoryRow[];
+//   }>("/dashboard");
+// }
 export async function getDashboard() {
-  return http.get<{
-    stats: { revenue30d: number; orders30d: number; customers: number; openOrders: number; lowStock: number; pendingReturns: number };
-    trend: { label: string; revenue: number; orders: number }[];
-    recentOrders: Order[];
-    lowStockRows: InventoryRow[];
-  }>("/dashboard");
+  const [summaryRes, trendRes, lowStockRes] = await Promise.all([
+    http.get<{
+      range: { from: string; to: string };
+      revenue: number;
+      orderCount: number;
+      averageOrderValue: number;
+      newCustomers: number;
+      lowStockCount: number;
+      pendingReturns: number;
+    }>("/dashboard/summary"),
+    http.get<{ trend: { date: string; revenue: number; orders: number }[] }>("/dashboard/revenue-trend"),
+    http.get<{ items: InventoryRow[] }>("/dashboard/low-stock", { limit: 5 }),
+  ]);
+
+  const summary = summaryRes.data;
+  const trend = trendRes.data.trend;
+  const lowStockRows = lowStockRes.data.items;
+
+  return {
+    ...summaryRes,
+    data: {
+      stats: {
+        revenue30d: summary.revenue,
+        orders30d: summary.orderCount,
+        customers: summary.newCustomers,
+        openOrders: 0, // no matching backend field — see note below
+        lowStock: summary.lowStockCount,
+        pendingReturns: summary.pendingReturns,
+      },
+      trend: trend.map((t) => ({ label: t.date, revenue: t.revenue, orders: t.orders })),
+      recentOrders: [], // no matching backend field — see note below
+      lowStockRows,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -2197,6 +2233,11 @@ export async function toggleAdminUserStatus(id: string) {
 // implied by Epic 5's "Audit log viewer" requirement.
 export async function listAuditLog() {
   return http.get<{ id: string; actor: string; action: string; entity: string; entityId: string; createdAt: string }[]>("/audit-log");
+}
+
+export async function me(): Promise<{ user: AdminUser; role: Role }> {
+  const res = await http.get<{ user: AdminUser; role: Role }>("/auth/me");
+  return res.data;
 }
 
 // ---------------------------------------------------------------------------
