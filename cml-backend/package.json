@@ -3,14 +3,16 @@
   "version": "1.0.0",
   "description": "CML Jewellers - Production-ready jewelry e-commerce REST API",
   "main": "dist/server.js",
-  "scripts": {
-    "dev": "nodemon --exec ts-node src/server.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
-    "lint": "eslint \"src/**/*.ts\"",
-    "seed": "tsx src/utils/seed.ts",
-    "test": "jest --runInBand"
-  },
+
+    "scripts": {
+      "dev": "nodemon --exec \"ts-node -r tsconfig-paths/register\" src/server.ts",
+      "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
+      "start": "node dist/server.js",
+      "lint": "eslint \"src/**/*.ts\"",
+      "seed": "ts-node -r tsconfig-paths/register src/utils/seed.ts",
+      "seed:sample": "ts-node -r tsconfig-paths/register src/utils/seedSampleData.ts",
+      "test": "jest --runInBand"
+    },
   "dependencies": {
     "axios": "^1.7.4",
     "bcryptjs": "^2.4.3",
@@ -46,6 +48,8 @@
     "nodemon": "^3.1.4",
     "ts-node": "^10.9.2",
     "tsx": "^4.23.13",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "tsconfig-paths": "^4.2.0",
+"tsc-alias": "^1.8.10"
   }
 }

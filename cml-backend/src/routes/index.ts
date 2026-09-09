@@ -12,6 +12,7 @@ import adminRoutes from './admin/index';
 
 const router = Router();
 
+router.use('/admin', adminRoutes);
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/', catalogRoutes);
@@ -21,6 +22,6 @@ router.use('/', checkoutOrderRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/returns', returnRoutes);
 router.use('/reviews', reviewRoutes);
-router.use('/admin', adminRoutes);
+
 
 export default router;

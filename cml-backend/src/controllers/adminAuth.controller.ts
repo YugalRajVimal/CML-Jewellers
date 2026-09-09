@@ -8,6 +8,7 @@ import { Role } from '../models/Role.model';
 
 export const adminLogin = asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body;
+  console.log('[adminLogin] Attempt login for email:', email); // console.log check
   const { admin, accessToken } = await adminAuthService.loginAdmin(email, password);
 
   sendSuccess(res, {

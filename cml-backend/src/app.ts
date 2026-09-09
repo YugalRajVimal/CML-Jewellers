@@ -35,7 +35,8 @@ export function createApp(): Application {
     sendSuccess(res, { message: 'CML Jewellers API is healthy', data: { env: env.nodeEnv } });
   });
 
-  app.use('/api/v1', apiRateLimiter, apiRouter);
+
+  app.use('/api/v1', apiRouter);
 
   app.use(notFoundHandler);
   app.use(globalErrorHandler);
