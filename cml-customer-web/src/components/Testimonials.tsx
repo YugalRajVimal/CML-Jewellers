@@ -232,11 +232,13 @@ export function Testimonials() {
   return (
     <Reveal>
       <section
-        className="bg-[var(--color-cream)] px-6 py-20"
+        className="bg-[var(--color-cream)] px-6 py-20 w-screen relative"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
       >
-        <div className="mx-auto grid max-w-7xl gap-14 lg:grid-cols-2 lg:items-center lg:gap-20">
+        {/* Move overflow-hidden to the top-level section if w-screen */}
+        <div className="absolute inset-0 w-screen h-full overflow-hidden pointer-events-none -z-10" aria-hidden />
+        <div className="mx-auto grid max-w-7xl gap-14 lg:grid-cols-2 lg:items-center lg:gap-20 relative z-10">
           {/* Left: copy */}
           <div>
             <p className="eyebrow">Customer voices</p>
@@ -270,7 +272,7 @@ export function Testimonials() {
             </div>
 
             <div className="mt-10 flex items-center gap-4">
-              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full bg-[var(--color-cream-deep)]">
+              <div className="h-14 w-14 shrink-0 rounded-full bg-[var(--color-cream-deep)]">
                 <AnimatePresence mode="wait">
                   <motion.img
                     key={active}
@@ -301,7 +303,7 @@ export function Testimonials() {
                   key={i}
                   aria-label={`Show testimonial ${i + 1}`}
                   onClick={() => setActive(i)}
-                  className="relative h-px w-10 overflow-hidden bg-[var(--color-stone-light)]"
+                  className="relative h-px w-10 bg-[var(--color-stone-light)]"
                 >
                   {i === active && !reduce && (
                     <motion.span
@@ -310,10 +312,33 @@ export function Testimonials() {
                       initial={{ width: "0%" }}
                       animate={{ width: paused ? undefined : "100%" }}
                       transition={{ duration: AUTO_ADVANCE_MS / 1000, ease: "linear" }}
+                      style={{
+                        overflow: "hidden", // Ensures span's children don't escape
+                        display: "block",
+                        height: "100%",
+                      }}
                     />
                   )}
-                  {i === active && reduce && <span className="absolute inset-0 bg-[var(--color-gold)]" />}
-                  {i < active && <span className="absolute inset-0 bg-[var(--color-gold)]" />}
+                  {i === active && reduce && (
+                    <span
+                      className="absolute inset-0 bg-[var(--color-gold)]"
+                      style={{
+                        overflow: "hidden",
+                        display: "block",
+                        height: "100%",
+                      }}
+                    />
+                  )}
+                  {i < active && (
+                    <span
+                      className="absolute inset-0 bg-[var(--color-gold)]"
+                      style={{
+                        overflow: "hidden",
+                        display: "block",
+                        height: "100%",
+                      }}
+                    />
+                  )}
                 </button>
               ))}
 
@@ -325,7 +350,7 @@ export function Testimonials() {
 
           {/* Right: image with twinkling stars */}
           <div className="relative mx-auto aspect-[4/5] w-full max-w-md">
-            <div className="h-full w-full overflow-hidden rounded-t-[70%] bg-[var(--color-cream-deep)]" aria-hidden>
+            <div className="h-full w-full rounded-t-[70%] bg-[var(--color-cream-deep)]" aria-hidden>
               <AnimatePresence mode="wait">
                 <motion.img
                   key={active}

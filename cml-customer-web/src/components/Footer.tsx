@@ -224,7 +224,7 @@ export function Footer() {
       </div>
 
       {/* Floating chat affordance */}
-      <button
+      {/* <button
         type="button"
         aria-label="Chat with us"
         className="fixed bottom-6 left-6 z-40 flex items-center gap-2 rounded-full bg-[var(--color-cream)] py-2.5 pl-3 pr-4 text-sm text-[var(--color-ink)] shadow-xl transition-transform hover:scale-105"
@@ -233,7 +233,7 @@ export function Footer() {
           <MessageCircle size={18} strokeWidth={1.5} />
         </span>
         Chat with us 👋
-      </button>
+      </button> */}
     </footer>
   );
 }

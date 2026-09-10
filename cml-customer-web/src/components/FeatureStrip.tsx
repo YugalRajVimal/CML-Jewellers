@@ -46,22 +46,75 @@ export function FeatureStrip() {
 
   return (
     <section className="font-marcellus bg-[var(--color-cream-deep,#f2e4cc)]">
-      <div className="mx-auto grid max-w-7xl grid-cols-1 divide-y divide-[var(--color-ink,#1c1c1c)]/15 px-6 py-16 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+      <div
+        className="
+          mx-auto
+          max-w-7xl
+          grid
+          grid-cols-1
+          gap-y-10
+          gap-x-6
+          divide-y
+          divide-[var(--color-ink,#1c1c1c)]/15
+          px-4
+          py-10
+          sm:gap-x-6 sm:gap-y-0
+          sm:grid-cols-3
+          sm:divide-y-0
+          sm:divide-x
+          md:px-8
+          md:py-16
+          lg:px-16
+        "
+      >
         {FEATURES.map(({ Icon, title, lines }, i) => (
           <motion.div
             key={title}
-            className="flex flex-col items-center gap-5 px-6 py-10 text-center first:pt-0 sm:py-0"
+            className="
+              flex flex-col items-center
+              gap-4
+              px-2 py-8
+              text-center
+              sm:py-8
+              md:gap-5
+              md:px-6
+              md:py-10
+              first:pt-0
+            "
             initial={reduce ? undefined : { opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.4 }}
             transition={{ duration: 0.5, delay: i * 0.12, ease: "easeOut" }}
           >
-            <span className="block w-28 h-28 mb-2">
+            <span
+              className="
+                block
+                mb-2
+                w-20 h-20
+                sm:w-24 sm:h-24
+                md:w-28 md:h-28
+                lg:w-32 lg:h-32
+              "
+            >
               <Icon />
             </span>
-       
-            <p className="text-2xl text-[var(--color-ink,#1c1c1c)]">{title}</p>
-            <div className="text-[15px] leading-relaxed text-[var(--color-stone,#6b6154)]">
+
+            <p
+              className="
+                text-xl
+                md:text-2xl
+                text-[var(--color-ink,#1c1c1c)]
+              "
+            >
+              {title}
+            </p>
+            <div className="
+              text-[15px] 
+              md:text-base 
+              leading-relaxed 
+              text-[var(--color-stone,#6b6154)]
+              space-y-0.5 md:space-y-1
+              ">
               {lines.map((line) => (
                 <p key={line}>{line}</p>
               ))}

@@ -333,7 +333,7 @@ export function ShopGrid({ category, title }: { category?: string; title: string
                   Showing {state.products.length} of {state.total} {state.total === 1 ? "piece" : "pieces"}
                 </p>
 
-                <div className="grid grid-cols-2 gap-x-6 gap-y-14 sm:grid-cols-3 xl:grid-cols-3">
+                <div className="grid grid-cols-1 gap-x-6 gap-y-6 md:gap-y-14 sm:grid-cols-3 xl:grid-cols-3">
                   {state.products.map((product, i) => (
                     <ProductCard key={(product as any)._id ?? product.id} product={product} />
                   ))}

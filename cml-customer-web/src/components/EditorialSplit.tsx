@@ -48,7 +48,7 @@ export function AboutStatsSection() {
       ref={sectionRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className="font-marcellus relative mx-auto max-h-screen  overflow-hidden px-6 py-16 lg:py-24"
+      className="font-marcellus relative mx-auto   overflow-hidden px-6 py-16 lg:py-24"
     >
       <div className="grid gap-12 lg:grid-cols-2  lg:items-center lg:gap-16">
         {/* Left: arch image with curved headline + floating "Know More" badge */}

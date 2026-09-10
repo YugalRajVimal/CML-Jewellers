@@ -18,6 +18,9 @@ import { Sparkle } from "@/components/motion/Sparkle";
 import { HeroSection } from "@/components/HeroSection";
 
 import {FeatureStrip} from "@/components/FeatureStrip"
+import {QualitySection} from "@/components/Qualitysection"
+
+
 
 
 export default function Home() {
@@ -75,6 +78,8 @@ export default function Home() {
       <AboutStatsSection />
 
 <FeatureStrip/>
+
+<QualitySection />
 
       <JewelCollectionsSection />
       <MarqueeStrip />

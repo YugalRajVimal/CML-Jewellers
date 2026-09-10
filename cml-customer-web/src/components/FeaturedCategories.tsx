@@ -36,7 +36,7 @@ function getPlaceholderImage(index: number) {
 
 function CategoryItem({ category, image }: { category: Category; image: string }) {
   return (
-    <div className="flex shrink-0 items-center gap-5 px-8 mx-16">
+    <div className="flex shrink-0 items-center gap-5 px-8 md:mx-16">
       <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full sm:h-24 sm:w-24">
         <img
           src={image}
