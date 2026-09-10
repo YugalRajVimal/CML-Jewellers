@@ -5,6 +5,17 @@ import { AppError } from '../utils/AppError';
 import { Wishlist } from '../models/Wishlist.model';
 import { Product } from '../models/Product.model';
 
+// export const listWishlist = asyncHandler(async (req: Request, res: Response) => {
+//   const wishlist = await Wishlist.findOne({ userId: req.user!.sub });
+//   const productIds = wishlist?.items.map((i) => i.productId) || [];
+
+//   const products = await Product.find({ _id: { $in: productIds }, status: 'active' }).select(
+//     'name slug images basePrice mrp ratingAvg'
+//   );
+
+//   sendSuccess(res, { data: { products } });
+// });
+
 export const listWishlist = asyncHandler(async (req: Request, res: Response) => {
   const wishlist = await Wishlist.findOne({ userId: req.user!.sub });
   const productIds = wishlist?.items.map((i) => i.productId) || [];
@@ -13,7 +24,28 @@ export const listWishlist = asyncHandler(async (req: Request, res: Response) => 
     'name slug images basePrice mrp ratingAvg'
   );
 
-  sendSuccess(res, { data: { products } });
+  // Pull each product's first active variant so "Move to cart" on the frontend has something to add.
+  const { ProductVariant } = await import('../models/ProductVariant.model');
+  const variants = await ProductVariant.find({ productId: { $in: productIds }, isActive: true }).sort({ createdAt: 1 });
+  const firstVariantByProduct = new Map<string, (typeof variants)[number]>();
+  for (const v of variants) {
+    const key = v.productId.toString();
+    if (!firstVariantByProduct.has(key)) firstVariantByProduct.set(key, v);
+  }
+
+  const items = products.map((product) => {
+    const variant = firstVariantByProduct.get(product._id.toString());
+    return {
+      id: product._id.toString(),
+      product: {
+        ...product.toJSON(),
+        price: product.basePrice,
+        variants: variant ? [variant.toJSON()] : [],
+      },
+    };
+  });
+
+  sendSuccess(res, { data: items }); // bare array of { id, product }
 });
 
 export const addToWishlist = asyncHandler(async (req: Request, res: Response) => {

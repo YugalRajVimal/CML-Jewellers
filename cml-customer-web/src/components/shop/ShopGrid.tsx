@@ -235,7 +235,7 @@ export function ShopGrid({ category, title }: { category?: string; title: string
     const qs = toQueryString({ page, limit: PAGE_SIZE, sort, q: q || undefined, minPrice, maxPrice, metal, category });
 
     apiClient
-      .getWithMeta<any>(`/products${qs}`, { auth: false })
+      .getWithMeta<any>(`/products${qs}`)
       .then(({ data, meta }) => {
         if (cancelled) return;
 

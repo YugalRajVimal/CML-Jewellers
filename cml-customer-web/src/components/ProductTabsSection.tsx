@@ -321,6 +321,7 @@ import { apiClient } from "@/lib/api-client";
 import { useAsync } from "@/lib/use-async";
 import type { Product } from "@/lib/types";
 import { ShopNowButton } from "@/components/Shopnowbutton";
+import { useCommerce } from "@/lib/commerce-context";
 
 type Tab = {
   label: string;
@@ -399,9 +400,45 @@ const quickActions = [
 
 function ProductGridCard({ product, index }: { product: Product; index: number }) {
   const reduce = useReducedMotion();
-  const id = (product as any)._id ?? (product as any).id;
+  const p = product as any;
+  const id = p._id ?? p.id;
   const image = product.images?.[0];
-  const hasDiscount = (product as any).discountPercent > 0;
+  const hasDiscount = p.discountPercent > 0;
+  const inStock = p.inStock !== false;
+
+  // Initialize wishlisted state from product.isWishlisted
+  const [wishlisted, setWishlisted] = useState(!!p.isWishlisted);
+  const [cartState, setCartState] = useState<"idle" | "adding" | "added" | "error">("idle");
+  const { refresh } = useCommerce();
+
+  async function handleWishlist(e: React.MouseEvent) {
+    e.preventDefault();
+    const next = !wishlisted;
+    setWishlisted(next);
+    try {
+      if (next) await apiClient.post("/wishlist", { productId: id });
+      else await apiClient.delete(`/wishlist/${id}`);
+      refresh();
+    } catch {
+      setWishlisted(!next);
+    }
+  }
+
+  async function handleAddToCart(e: React.MouseEvent) {
+    e.preventDefault();
+    const defaultVariantId = p.defaultVariantId;
+    if (!defaultVariantId) return;
+    setCartState("adding");
+    try {
+      await apiClient.post("/cart/items", { variantId: defaultVariantId, quantity: 1 });
+      setCartState("added");
+      refresh();
+    } catch {
+      setCartState("error");
+    } finally {
+      setTimeout(() => setCartState("idle"), 1500);
+    }
+  }
 
   return (
     <motion.div
@@ -413,7 +450,7 @@ function ProductGridCard({ product, index }: { product: Product; index: number }
       style={{ overflow: "visible" }}
     >
       <Link
-        href={`/products/${(product as any).slug ?? id}`}
+        href={`/product/${(product as any).slug ?? id}`}
         className="block overflow-hidden rounded-xl"
         style={{ boxShadow: "0 8px 40px 0 rgba(195,168,129,0.12)" }}
       >
@@ -445,21 +482,47 @@ function ProductGridCard({ product, index }: { product: Product; index: number }
           )}
 
           {/* Quick-actions */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex translate-y-3 justify-center gap-2 pb-3 opacity-0 transition-all duration-500 ease-out group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 sm:gap-3 sm:pb-5">
-            {quickActions.map(({ Icon, label }, i) => (
-              <button
-                key={label}
-                type="button"
-                aria-label={label}
-                onClick={(e) => e.preventDefault()}
-                style={{ transitionDelay: `${i * 70}ms` }}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-gold-light,#efd6ae)] bg-white/70 text-[var(--color-gold,#b98a4e)] shadow-xl ring-1 ring-[var(--color-gold-light,#efd6ae)] backdrop-blur-lg transition-all duration-300 hover:scale-110 hover:bg-[var(--color-gold,#b98a4e)] hover:text-white sm:h-10 sm:w-10"
-              >
-                <Icon size={14} strokeWidth={1.5} className="sm:hidden" />
-                <Icon size={17} strokeWidth={1.5} className="hidden sm:block" />
-              </button>
-            ))}
-          </div>
+        {/* Quick-actions: Show more visually elegant, with glassmorphism, and premium icons */}
+<div className="pointer-events-none absolute inset-x-0 bottom-0 flex translate-y-3 justify-center gap-2 pb-3 opacity-0 transition-all duration-500 ease-out group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 sm:gap-3 sm:pb-5">
+  <button
+    type="button"
+    aria-label="Quick view"
+    className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-gold-light,#efd6ae)] bg-white/70 text-[var(--color-gold,#b98a4e)] shadow-xl ring-1 ring-[var(--color-gold-light,#efd6ae)] backdrop-blur-lg transition-all duration-300 hover:scale-110 hover:bg-[var(--color-gold,#b98a4e)] hover:text-white sm:h-10 sm:w-10"
+  >
+    <Eye size={14} strokeWidth={1.5} className="sm:hidden" />
+    <Eye size={17} strokeWidth={1.5} className="hidden sm:block" />
+  </button>
+
+  <button
+    type="button"
+    aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
+    aria-pressed={wishlisted}
+    onClick={handleWishlist}
+    className={`flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-gold-light,#efd6ae)] shadow-xl ring-1 ring-[var(--color-gold-light,#efd6ae)] backdrop-blur-lg transition-all duration-300 hover:scale-110 sm:h-10 sm:w-10 ${
+      wishlisted
+        ? "bg-[var(--color-gold,#b98a4e)] text-white"
+        : "bg-white/70 text-[var(--color-gold,#b98a4e)] hover:bg-[var(--color-gold,#b98a4e)] hover:text-white"
+    }`}
+  >
+    <Heart size={14} strokeWidth={1.5} fill={wishlisted ? "currentColor" : "none"} className="sm:hidden" />
+    <Heart size={17} strokeWidth={1.5} fill={wishlisted ? "currentColor" : "none"} className="hidden sm:block" />
+  </button>
+
+  <button
+    type="button"
+    aria-label={cartState === "added" ? "Added to cart" : "Add to cart"}
+    onClick={handleAddToCart}
+    disabled={!inStock || cartState === "adding"}
+    className={`flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-gold-light,#efd6ae)] shadow-xl ring-1 ring-[var(--color-gold-light,#efd6ae)] backdrop-blur-lg transition-all duration-300 hover:scale-110 disabled:opacity-50 disabled:hover:scale-100 sm:h-10 sm:w-10 ${
+      cartState === "added"
+        ? "bg-[var(--color-gold,#b98a4e)] text-white"
+        : "bg-white/70 text-[var(--color-gold,#b98a4e)] hover:bg-[var(--color-gold,#b98a4e)] hover:text-white"
+    }`}
+  >
+    <ShoppingBag size={14} strokeWidth={1.5} className="sm:hidden" />
+    <ShoppingBag size={17} strokeWidth={1.5} className="hidden sm:block" />
+  </button>
+</div>
 
           {/* Floating gold sparkle on hover */}
           <div className="pointer-events-none absolute bottom-5 right-4 z-30 hidden group-hover:block sm:bottom-7 sm:right-6">
@@ -516,7 +579,7 @@ export function JewelCollectionsSection() {
   const tab = TABS[active];
 
   const state = useAsync(
-    () => apiClient.get<any>(`/products?category=${tab.category}&limit=6`, { auth: false }),
+    () => apiClient.get<any>(`/products?category=${tab.category}&limit=6`),
     (resp) => getProductsFromData(resp).length === 0,
     [active]
   );

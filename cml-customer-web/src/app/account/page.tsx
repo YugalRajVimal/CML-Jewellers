@@ -1,19 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { useAsync } from "@/lib/use-async";
 import type { User } from "@/lib/types";
 
 export default function ProfilePage() {
-  const state = useAsync(() => apiClient.get<User>("/users/me"), () => false);
+  const router = useRouter();
+  const state = useAsync(async () => {
+    const response = await apiClient.get<User>("/users/me");
+    console.log("User Profile Response:", response);
+    return response;
+  }, () => false);
+
+  // If error, redirect to /login
+  useEffect(() => {
+    if (state.status === "error") {
+      router.replace("/login");
+    }
+  }, [state.status, router]);
 
   if (state.status === "loading") {
     return <div className="h-40 skeleton" aria-busy="true" />;
   }
 
+  // Don't render error text (we redirect instead)
   if (state.status === "error") {
-    return <p className="text-sm text-[var(--color-stone)]">Couldn&apos;t load your profile. ({state.message})</p>;
+    return null; // Or a spinner if you prefer
   }
 
   if (state.status === "empty") return null;
@@ -28,6 +42,7 @@ function ProfileForm({ user }: { user: User }) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,6 +53,10 @@ function ProfileForm({ user }: { user: User }) {
       await apiClient.patch("/users/me", { name, email, phone });
       setSaved(true);
     } catch (err) {
+      if (err instanceof ApiClientError && err.status === 401) {
+        router.replace("/login");
+        return;
+      }
       setError(err instanceof ApiClientError ? err.message : "Couldn't save your profile.");
     } finally {
       setBusy(false);

@@ -8,10 +8,17 @@ import {
 } from './inventory.service';
 import { initiateRefundForReturn } from './refund.service';
 
+// export interface RequestReturnInput {
+//   orderId: string;
+//   items: { orderItemProductId: string; variantId: string; qty: number; reason: string }[];
+//   reason: string;
+// }
+
 export interface RequestReturnInput {
   orderId: string;
-  items: { orderItemProductId: string; variantId: string; qty: number; reason: string }[];
+  items?: { orderItemProductId: string; variantId: string; qty: number; reason: string }[];
   reason: string;
+  notes?: string;
 }
 
 export async function requestReturn(userId: string, input: RequestReturnInput): Promise<IReturn> {
@@ -22,8 +29,17 @@ export async function requestReturn(userId: string, input: RequestReturnInput): 
     throw AppError.conflict('Returns can only be requested for delivered orders', 'ORDER_NOT_DELIVERED');
   }
 
-  // Validate requested items+qty against what was actually ordered.
-  for (const reqItem of input.items) {
+  // No item-level breakdown from the client — default to returning every line in full.
+  const items =
+    input.items ??
+    order.items.map((oi) => ({
+      orderItemProductId: oi.productId.toString(),
+      variantId: oi.variantId.toString(),
+      qty: oi.qty,
+      reason: input.reason,
+    }));
+
+  for (const reqItem of items) {
     const orderItem = order.items.find((i) => i.variantId.toString() === reqItem.variantId);
     if (!orderItem) {
       throw AppError.badRequest('One or more items are not part of this order', 'INVALID_RETURN_ITEM');
@@ -33,11 +49,13 @@ export async function requestReturn(userId: string, input: RequestReturnInput): 
     }
   }
 
+  const fullReason = input.notes ? `${input.reason} — ${input.notes}` : input.reason;
+
   const returnDoc = await Return.create({
     orderId: order._id,
     userId,
-    items: input.items,
-    reason: input.reason,
+    items,
+    reason: fullReason,
     status: 'Requested',
   });
 
@@ -46,6 +64,39 @@ export async function requestReturn(userId: string, input: RequestReturnInput): 
 
   return returnDoc;
 }
+
+// export async function requestReturn(userId: string, input: RequestReturnInput): Promise<IReturn> {
+//   const order = await Order.findOne({ _id: input.orderId, userId });
+//   if (!order) throw AppError.notFound('Order not found');
+
+//   if (order.status !== 'Delivered') {
+//     throw AppError.conflict('Returns can only be requested for delivered orders', 'ORDER_NOT_DELIVERED');
+//   }
+
+//   // Validate requested items+qty against what was actually ordered.
+//   for (const reqItem of input.items) {
+//     const orderItem = order.items.find((i) => i.variantId.toString() === reqItem.variantId);
+//     if (!orderItem) {
+//       throw AppError.badRequest('One or more items are not part of this order', 'INVALID_RETURN_ITEM');
+//     }
+//     if (reqItem.qty > orderItem.qty) {
+//       throw AppError.badRequest(`Cannot return more than ${orderItem.qty} unit(s) of this item`, 'INVALID_RETURN_QTY');
+//     }
+//   }
+
+//   const returnDoc = await Return.create({
+//     orderId: order._id,
+//     userId,
+//     items: input.items,
+//     reason: input.reason,
+//     status: 'Requested',
+//   });
+
+//   order.status = 'ReturnRequested';
+//   await order.save();
+
+//   return returnDoc;
+// }
 
 async function transition(returnId: string, to: ReturnStatus): Promise<IReturn> {
   const returnDoc = await Return.findById(returnId);

@@ -62,9 +62,15 @@ export default function OrdersPage() {
                   {new Date(order.createdAt).toLocaleDateString()} · {order.items.length} item
                   {order.items.length === 1 ? "" : "s"} · ₹{order.total}
                 </p>
+                {order.status === "Pending" && (
+                  <Link href={`/checkout/payment?orderId=${order.id}`} className="pill mt-2 inline-block">
+                    Resume Payment
+                  </Link>
+                )}
               </div>
               <OrderStatusBadge status={order.status} />
             </Link>
+       
           ))}
         </div>
       )}

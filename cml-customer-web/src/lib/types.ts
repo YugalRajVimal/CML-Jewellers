@@ -290,12 +290,15 @@ export interface Product {
   isNewArrival: boolean;
   inStock: boolean;
 
+  isWishlisted?: boolean;
+
   ratingAvg: number;
   ratingCount: number;
 
   variantCount: number;
   totalAvailable: number;
   variants?: ProductVariant[];
+  defaultVariantId?: string
 
   publishedAt?: string;
   createdAt: string;
@@ -331,6 +334,8 @@ export interface Cart {
   items: CartItem[];
   subtotal: number;
   discount: number;
+  shipping: number;
+  tax: number;
   total: number;
   couponCode?: string;
 }

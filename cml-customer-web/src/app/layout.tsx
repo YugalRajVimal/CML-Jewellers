@@ -3,6 +3,8 @@ import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { PageTransition } from "@/components/motion/PageTransition";
+import { AuthProvider } from "@/lib/auth-context";
+import { CommerceProvider } from "@/lib/commerce-context";
 
 // NOTE: this sandbox can't reach fonts.googleapis.com, so the display/body
 // faces are wired up as CSS variables with a system fallback for now. With
@@ -20,7 +22,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className="h-full antialiased">
+      
       <body className="flex min-h-full flex-col font-marcellus">
+      <AuthProvider>
+        <CommerceProvider>
+
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-[var(--color-maroon)] focus:px-4 focus:py-2 focus:text-sm focus:text-[var(--color-cream)]"
@@ -32,6 +38,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <PageTransition>{children}</PageTransition>
         </main>
         <Footer />
+        </CommerceProvider>
+        </AuthProvider>
       </body>
     </html>
   );

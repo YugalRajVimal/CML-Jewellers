@@ -112,6 +112,7 @@ export async function queryProducts(query: ProductListQuery) {
         let: { productId: '$_id' },
         pipeline: [
           { $match: { $expr: { $and: [{ $eq: ['$productId', '$$productId'] }, { $eq: ['$isActive', true] }] } } },
+          { $sort: { createdAt: 1 } },
           { $project: { _id: 1 } },
         ],
         as: 'variants',
@@ -129,6 +130,7 @@ export async function queryProducts(query: ProductListQuery) {
       $addFields: {
         variantCount: { $size: '$variants' },
         totalAvailable: { $sum: '$inventoryDocs.available' },
+        defaultVariantId: { $arrayElemAt: ['$variants._id', 0] },
         discountPercent: {
           $cond: [
             { $gt: ['$mrp', 0] },

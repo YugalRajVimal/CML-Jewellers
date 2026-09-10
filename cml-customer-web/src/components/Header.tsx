@@ -242,6 +242,8 @@ import { motion, useReducedMotion, AnimatePresence } from "framer-motion";
 import { User, Heart, ShoppingBag, Menu, X, ChevronDown } from "lucide-react";
 import { FaThreads } from "react-icons/fa6";
 import { FaFacebookF, FaInstagram, FaTwitter, FaYoutube } from "react-icons/fa";
+import { useAuth } from "@/lib/auth-context";
+import { useCommerce } from "@/lib/commerce-context";
 
 const NAV_LINKS: { label: string; href: string; hasDropdown?: boolean }[] = [
   { label: "Home", href: "/" },
@@ -263,6 +265,8 @@ export function Header() {
   const [condensed, setCondensed] = useState(false);
   const pathname = usePathname();
   const reduce = useReducedMotion();
+  const { isLoggedIn } = useAuth();
+const { cartCount, wishlistCount } = useCommerce();
 
   useEffect(() => {
     function onScroll() {
@@ -378,14 +382,16 @@ export function Header() {
               <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[#1C1C1C]/70">
                 <User size={18} strokeWidth={1.5} />
               </span>
-              <span className="hidden text-[13px] tracking-wide text-[#1C1C1C] lg:block">Log In</span>
+              {/* <span >Log In</span> */}
+              <span className="hidden text-[13px] tracking-wide text-[#1C1C1C] lg:block">{isLoggedIn ? "Profile" : "Log In"}</span>
+              
             </Link>
 
             <Link href="/cart" aria-label="Cart" className="relative flex flex-col items-center gap-1.5">
               <span className="relative flex h-9 w-9 items-center justify-center rounded-full border border-[#1C1C1C]/70">
                 <ShoppingBag size={18} strokeWidth={1.5} />
                 <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#0F2D2E] text-[10px] text-white">
-                  0
+                {cartCount}
                 </span>
               </span>
               <span className="hidden text-[13px] tracking-wide text-[#1C1C1C] lg:block">Cart</span>
@@ -395,7 +401,7 @@ export function Header() {
               <span className="relative flex h-9 w-9 items-center justify-center rounded-full border border-[#1C1C1C]/70">
                 <Heart size={18} strokeWidth={1.5} />
                 <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#0F2D2E] text-[10px] text-white">
-                  0
+                {wishlistCount}
                 </span>
               </span>
               <span className="hidden text-[13px] tracking-wide text-[#1C1C1C] lg:block">Wishlist</span>

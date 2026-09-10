@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { AuthCard, AuthInput } from "@/components/AuthCard";
+import { setAccessToken } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -13,19 +15,50 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const { recheck } = useAuth();
+
+  // async function handleSubmit(e: React.FormEvent) {
+  //   e.preventDefault();
+  //   setError(null);
+  //   setSubmitting(true);
+  //   try {
+  //     await apiClient.post("/auth/register", { name, identifier, password }, { auth: false });
+  //     await apiClient.post(
+  //       "/auth/otp/send",
+  //       { channel: identifier.includes("@") ? "email" : "sms", purpose: "register" },
+  //       { auth: false },
+  //     );
+  //     router.push(`/otp?identifier=${encodeURIComponent(identifier)}&purpose=register`);
+  //   } catch (err) {
+  //     setError(err instanceof ApiClientError ? err.message : "Something went wrong. Try again.");
+  //   } finally {
+  //     setSubmitting(false);
+  //   }
+  // }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
-      await apiClient.post("/auth/register", { name, identifier, password }, { auth: false });
-      await apiClient.post(
-        "/auth/otp/send",
-        { channel: identifier.includes("@") ? "email" : "sms", purpose: "register" },
+      const isEmail = identifier.includes("@");
+      const data = await apiClient.post<{ accessToken: string }>(
+        "/auth/register",
+        {
+          name,
+          ...(isEmail ? { email: identifier } : { phone: identifier }),
+          password,
+        },
         { auth: false },
       );
-      router.push(`/otp?identifier=${encodeURIComponent(identifier)}&purpose=register`);
+      setAccessToken(data.accessToken); // register already logs you in — no need to wait on OTP
+      recheck();
+      await apiClient.post(
+        "/auth/otp/send",
+        { identifier, channel: isEmail ? "email" : "sms", purpose: "verify_contact" },
+        { auth: false },
+      ).catch(() => {}); // best-effort — verification is optional, don't block account creation on it
+      router.push("/account");
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : "Something went wrong. Try again.");
     } finally {

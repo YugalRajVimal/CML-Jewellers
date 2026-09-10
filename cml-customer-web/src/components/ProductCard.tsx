@@ -122,7 +122,9 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { Eye, Heart, Pin, ShoppingBag, Star } from "lucide-react";
 import type { Product } from "@/lib/types";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { apiClient } from "@/lib/api-client";
+import { useCommerce } from "@/lib/commerce-context";
 
 // Backend stores prices as integer paise/cents — divide by 100 for display.
 function formatPrice(value: number) {
@@ -165,12 +167,6 @@ function attributeLine(attributes: Record<string, string> | undefined): string {
   return parts.join(" • ");
 }
 
-const quickActions = [
-  { Icon: Eye, label: "Quick view" },
-  { Icon: Heart, label: "Add to wishlist" },
-  { Icon: ShoppingBag, label: "Add to cart" },
-];
-
 export function ProductCard({ product, index = 0 }: { product: Product; index?: number }) {
   const reduce = useReducedMotion();
   const p = product as any;
@@ -181,9 +177,47 @@ export function ProductCard({ product, index = 0 }: { product: Product; index?: 
   const lowStock = inStock && typeof p.totalAvailable === "number" && p.totalAvailable > 0 && p.totalAvailable <= 5;
   const details = attributeLine(p.attributes);
 
-  // INSERT_YOUR_CODE
-  // Log the product prop whenever it changes
+  // Initialize wishlisted state based on p.isWishlisted for each product
+  const [wishlisted, setWishlisted] = useState(!!p.isWishlisted);
 
+  const [cartState, setCartState] = useState<"idle"|"adding"|"added"|"error">("idle");
+  const {refresh} = useCommerce();
+
+  // Sync wishlisted state when product changes (e.g. new product card, or wishlist status updated upstream)
+  useEffect(() => {
+    setWishlisted(!!p.isWishlisted);
+  }, [p.isWishlisted, p._id, p.id]); // p._id or p.id change = possibly a new product
+
+  async function handleWishlist(e: React.MouseEvent) {
+    e.preventDefault();
+    const next = !wishlisted;
+    setWishlisted(next);
+    try {
+      if (next) await apiClient.post("/wishlist", { productId: id });
+      else await apiClient.delete(`/wishlist/${id}`);
+      refresh();
+    } catch {
+      setWishlisted(!next);
+    }
+  }
+
+  async function handleAddToCart(e: React.MouseEvent) {
+    e.preventDefault();
+    const defaultVariantId = p.defaultVariantId;
+    if (!defaultVariantId) return;
+    setCartState("adding");
+    try {
+      await apiClient.post("/cart/items", { variantId: defaultVariantId, quantity: 1 });
+      setCartState("added");
+      refresh(); // ← moved here, only on success
+    } catch {
+      setCartState("error");
+    } finally {
+      setTimeout(() => setCartState("idle"), 1500);
+    }
+  }
+
+  // Log the product prop whenever it changes
   useEffect(() => {
     console.log("Product prop:", product);
   }, [product]);
@@ -242,18 +276,45 @@ export function ProductCard({ product, index = 0 }: { product: Product; index?: 
 
           {/* Quick-actions */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center gap-3 pb-5 opacity-0 transition-all duration-500 ease-out group-hover:pointer-events-auto group-hover:opacity-100 translate-y-3 group-hover:translate-y-0">
-            {quickActions.map(({ Icon, label }, i) => (
-              <button
-                key={label}
-                type="button"
-                aria-label={label}
-                onClick={(e) => e.preventDefault()}
-                style={{ transitionDelay: `${i * 70}ms` }}
-                className="flex h-10 w-10 items-center justify-center rounded-full shadow-xl backdrop-blur-lg bg-white/70 border border-[var(--color-gold-light,#efd6ae)] ring-1 ring-[var(--color-gold-light,#efd6ae)] text-[var(--color-gold,#b98a4e)] hover:bg-[var(--color-gold,#b98a4e)] hover:text-white hover:scale-110 transition-all duration-300"
-              >
-                <Icon size={17} strokeWidth={1.5} />
-              </button>
-            ))}
+            <button
+              type="button"
+              aria-label="Quick view"
+              style={{ transitionDelay: "0ms" }}
+              className="flex h-10 w-10 items-center justify-center rounded-full shadow-xl backdrop-blur-lg bg-white/70 border border-[var(--color-gold-light,#efd6ae)] ring-1 ring-[var(--color-gold-light,#efd6ae)] text-[var(--color-gold,#b98a4e)] hover:bg-[var(--color-gold,#b98a4e)] hover:text-white hover:scale-110 transition-all duration-300"
+              // no preventDefault — clicking bubbles to the parent <Link>, which is the correct "quick view" behavior
+            >
+              <Eye size={17} strokeWidth={1.5} />
+            </button>
+
+            <button
+              type="button"
+              aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
+              aria-pressed={wishlisted}
+              onClick={handleWishlist}
+              style={{ transitionDelay: "70ms" }}
+              className={`flex h-10 w-10 items-center justify-center rounded-full shadow-xl backdrop-blur-lg border border-[var(--color-gold-light,#efd6ae)] ring-1 ring-[var(--color-gold-light,#efd6ae)] hover:scale-110 transition-all duration-300 ${
+                wishlisted
+                  ? "bg-[var(--color-gold,#b98a4e)] text-white"
+                  : "bg-white/70 text-[var(--color-gold,#b98a4e)] hover:bg-[var(--color-gold,#b98a4e)] hover:text-white"
+              }`}
+            >
+              <Heart size={17} strokeWidth={1.5} fill={wishlisted ? "currentColor" : "none"} />
+            </button>
+
+            <button
+              type="button"
+              aria-label={cartState === "added" ? "Added to cart" : "Add to cart"}
+              onClick={handleAddToCart}
+              disabled={!inStock || cartState === "adding"}
+              style={{ transitionDelay: "140ms" }}
+              className={`flex h-10 w-10 items-center justify-center rounded-full shadow-xl backdrop-blur-lg border border-[var(--color-gold-light,#efd6ae)] ring-1 ring-[var(--color-gold-light,#efd6ae)] hover:scale-110 transition-all duration-300 disabled:opacity-50 disabled:hover:scale-100 ${
+                cartState === "added"
+                  ? "bg-[var(--color-gold,#b98a4e)] text-white"
+                  : "bg-white/70 text-[var(--color-gold,#b98a4e)] hover:bg-[var(--color-gold,#b98a4e)] hover:text-white"
+              }`}
+            >
+              <ShoppingBag size={17} strokeWidth={1.5} />
+            </button>
           </div>
 
           {/* Floating gold sparkle on hover */}

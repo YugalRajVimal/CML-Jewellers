@@ -4,10 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { clearTokens } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
 
 export default function SettingsPage() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const { recheck } = useAuth();
 
   async function handleLogout() {
     setBusy(true);
@@ -17,6 +19,7 @@ export default function SettingsPage() {
       // even if the backend call fails, clear local state and send them to login
     } finally {
       clearTokens();
+      recheck();
       router.push("/login");
     }
   }
@@ -28,7 +31,7 @@ export default function SettingsPage() {
       <div className="mt-8 max-w-md">
         <p className="text-sm text-[var(--color-stone)]">
           To change your password, use{" "}
-          <a href="/password/forgot" className="text-[var(--color-gold)] underline">
+          <a href="/forgot-password" className="text-[var(--color-gold)] underline">
             forgot password
           </a>{" "}
           from the login screen.

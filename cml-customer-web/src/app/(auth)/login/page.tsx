@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { setAccessToken } from "@/lib/auth";
 import { AuthCard, AuthInput } from "@/components/AuthCard";
+import { useAuth } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,24 +14,30 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const { recheck } = useAuth();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
+      const isEmail = identifier.includes("@");
       const data = await apiClient.post<{ accessToken: string }>(
         "/auth/login",
-        { identifier, password },
+        {
+          ...(isEmail ? { email: identifier } : { phone: identifier }),
+          password,
+        },
         { auth: false },
       );
       setAccessToken(data.accessToken);
+recheck();
       router.push("/account");
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : "Something went wrong. Try again.");
     } finally {
       setSubmitting(false);
-    }
+    } 
   }
 
   return (
@@ -66,9 +73,14 @@ export default function LoginPage() {
           {submitting ? "Logging in…" : "Log in"}
         </button>
       </form>
-      <Link href="/password/forgot" className="mt-2 block text-sm text-[var(--color-stone)]">
-        Forgot your password?
-      </Link>
+      <div className="mt-2 block text-sm">
+        <Link href="/forgot-password" className="text-[var(--color-stone)] mr-4">
+          Forgot your password?
+        </Link>
+        <Link href="/forgot-password" className="text-[var(--color-gold)]">
+          Forgot password?
+        </Link>
+      </div>
     </AuthCard>
   );
 }

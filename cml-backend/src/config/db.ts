@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 
 export async function connectDB(): Promise<void> {
   mongoose.set('strictQuery', true);
+  mongoose.set('toJSON', { virtuals: true, versionKey: false });
 
   try {
     await mongoose.connect(env.mongodbUri);

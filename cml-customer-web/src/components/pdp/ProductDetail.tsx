@@ -223,6 +223,8 @@ import { useAsync } from "@/lib/use-async";
 import { Gallery } from "./Gallery";
 import { VariantSelector } from "./VariantSelector";
 import { ProductCard } from "@/components/ProductCard";
+import { useRouter } from "next/navigation";
+import { useCommerce } from "@/lib/commerce-context";
 
 const TABS = ["Description", "Specifications", "Shipping & Returns"] as const;
 
@@ -242,6 +244,7 @@ type ApiProduct = {
   ratingAvg?: number;
   ratingCount?: number;
   isFeatured?: boolean;
+  isWishlisted?: boolean; // Add this property so TS doesn't complain
 };
 
 type ApiVariant = {
@@ -272,7 +275,7 @@ function formatPrice(value: number) {
 
 export function ProductDetail({ slug }: { slug: string }) {
   const state = useAsync(
-    () => apiClient.get<ProductDetailResponse>(`/products/${slug}`, { auth: false }),
+    () => apiClient.get<ProductDetailResponse>(`/products/${slug}`),
     (data) => !data?.product,
   );
 
@@ -320,10 +323,26 @@ function ProductDetailLoaded({
 }) {
   const [variant, setVariant] = useState<ApiVariant>(variants[0]);
   const [quantity, setQuantity] = useState(1);
-  const [wishlisted, setWishlisted] = useState(false);
+  // Use isWishlisted flag on the main product
+  const [wishlisted, setWishlisted] = useState(!!product.isWishlisted);
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("Description");
   const [cartMessage, setCartMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const router = useRouter();
+  const { refresh } = useCommerce();
+
+  async function handleBuyNow() {
+    setCartMessage(null);
+    setBusy(true);
+    try {
+      await apiClient.post("/cart/items", { variantId: variant._id, quantity });
+      router.push("/checkout");
+    } catch (err) {
+      setCartMessage(err instanceof ApiClientError ? err.message : "Couldn't start checkout.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const onSale = typeof variant.mrp === "number" && variant.mrp > variant.price;
   const outOfStock = variant.available <= 0;
@@ -340,6 +359,7 @@ function ProductDetailLoaded({
     try {
       await apiClient.post("/cart/items", { variantId: variant._id, quantity });
       setCartMessage("Added to cart.");
+      refresh();
     } catch (err) {
       setCartMessage(err instanceof ApiClientError ? err.message : "Couldn't add to cart.");
     } finally {
@@ -352,10 +372,11 @@ function ProductDetailLoaded({
     setWishlisted(next);
     try {
       if (next) {
-        await apiClient.post(`/wishlist/${product._id}`);
+        await apiClient.post("/wishlist", { productId: product._id });
       } else {
         await apiClient.delete(`/wishlist/${product._id}`);
       }
+      refresh();
     } catch {
       setWishlisted(!next); // revert on failure
     }
@@ -398,14 +419,15 @@ function ProductDetailLoaded({
                 selected={variant}
                 onSelect={(selected) => {
                   // Match the selected variant using a common identifier, e.g. _id or sku
-                  const found = variants.find(v => v._id === selected._id || v.sku === selected.sku);
+                  const found = variants.find(
+                    (v) => v._id === selected._id || v.sku === selected.sku,
+                  );
                   if (found) {
                     setVariant(found);
                   }
                 }}
               />
             </div>
-   
           )}
 
           <div className="mt-8 flex items-center gap-4">
@@ -444,11 +466,8 @@ function ProductDetailLoaded({
             >
               {busy ? "Adding…" : "Add to Cart"}
             </button>
-            <button
-              disabled={outOfStock}
-              className="border border-[var(--color-maroon)] px-6 py-3 text-sm text-[var(--color-maroon)] disabled:opacity-50"
-            >
-              Buy Now
+            <button onClick={handleBuyNow} disabled={outOfStock || busy} className="...">
+              {busy ? "Please wait…" : "Buy Now"}
             </button>
           </div>
 
@@ -483,7 +502,9 @@ function ProductDetailLoaded({
                 </ul>
               )}
               {activeTab === "Shipping & Returns" && (
-                <p>Free shipping on prepaid orders. 7-day returns on unworn, tagged pieces.</p>
+                <p>
+                  Free shipping on prepaid orders. 7-day returns on unworn, tagged pieces.
+                </p>
               )}
             </div>
           </div>
@@ -495,7 +516,10 @@ function ProductDetailLoaded({
           <h2 className="font-display text-2xl text-[var(--color-ink)]">You may also like</h2>
           <div className="mt-8 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 xl:grid-cols-4">
             {relatedProducts.map((related) => (
-              <ProductCard key={related._id} product={related as any} />
+              <ProductCard
+                key={related._id}
+                product={related as any}
+              />
             ))}
           </div>
         </div>

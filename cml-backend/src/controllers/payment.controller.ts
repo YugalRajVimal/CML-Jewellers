@@ -6,15 +6,37 @@ import { Payment } from '../models/Payment.model';
 import * as paymentService from '../services/payment/payment.service';
 import { handleCashfreeWebhook } from '../services/payment/webhook.service';
 
+// export const createPaymentSession = asyncHandler(async (req: Request, res: Response) => {
+//   const { orderId } = req.body;
+//   const payment = await paymentService.createPaymentSession(req.user!.sub, orderId);
+
+//   sendSuccess(res, {
+//     message: 'Payment session created',
+//     data: {
+//       paymentId: payment._id,
+//       paymentSessionId: payment.cfPaymentSessionId,
+//       amount: payment.amount,
+//       status: payment.status,
+//     },
+//     statusCode: 201,
+//   });
+// });
+
 export const createPaymentSession = asyncHandler(async (req: Request, res: Response) => {
   const { orderId } = req.body;
   const payment = await paymentService.createPaymentSession(req.user!.sub, orderId);
+
+  const checkoutHost =
+    process.env.CASHFREE_ENV === 'production'
+      ? 'https://payments.cashfree.com'
+      : 'https://payments-test.cashfree.com';
 
   sendSuccess(res, {
     message: 'Payment session created',
     data: {
       paymentId: payment._id,
       paymentSessionId: payment.cfPaymentSessionId,
+      paymentLink: `${checkoutHost}/order/#${payment.cfPaymentSessionId}`, // NEW — what the frontend redirects to
       amount: payment.amount,
       status: payment.status,
     },

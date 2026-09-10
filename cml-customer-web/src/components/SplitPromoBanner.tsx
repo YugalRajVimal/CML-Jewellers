@@ -257,7 +257,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Eye, Heart, ShoppingBag } from "lucide-react";
@@ -265,6 +265,7 @@ import { apiClient } from "@/lib/api-client";
 import { useAsync } from "@/lib/use-async";
 import type { Product } from "@/lib/types";
 import { Reveal } from "@/components/motion/Reveal";
+import { useCommerce } from "@/lib/commerce-context";
 
 function getProductsFromData(data: any): Product[] {
   if (Array.isArray(data)) return data;
@@ -290,23 +291,36 @@ function tagFor(product: any): string {
   return "";
 }
 
-const quickActions = [
-  { Icon: Eye, label: "Quick view" },
-  { Icon: Heart, label: "Add to wishlist" },
-  { Icon: ShoppingBag, label: "Add to cart" },
-];
-
 export function SplitPromoBanner() {
   const reduce = useReducedMotion();
   const [index, setIndex] = useState(0);
+  const [cartState, setCartState] = useState<"idle" | "adding" | "added" | "error">("idle");
+  const { refresh } = useCommerce();
+
+  // Track wishlisted state for each product individually, indexed by product ID.
+  // We use a ref to avoid recreating initial wishlisted state on every render when products changes.
+  const wishlistedMapRef = useRef<Record<string, boolean>>({});
+  const [wishlistedMap, setWishlistedMap] = useState<Record<string, boolean>>({});
 
   const state = useAsync(
-    () => apiClient.get<any>("/products?isFeatured=true&limit=6", { auth: false }),
+    () => apiClient.get<any>("/products?isFeatured=true&limit=6"),
     (resp) => getProductsFromData(resp).length === 0
   );
 
   const products: Product[] = state.status === "success" ? getProductsFromData(state.data) : [];
   const current: any = products[index];
+
+  // This ensures when new products appear, we set wishlisted states according to each product
+  useEffect(() => {
+    if (!products.length) return;
+    const newMap: Record<string, boolean> = {};
+    for (const p of products) {
+      const pid = p._id ?? p.id;
+      newMap[pid] = !!p.isWishlisted;
+    }
+    wishlistedMapRef.current = newMap;
+    setWishlistedMap({ ...newMap });
+  }, [products]);
 
   function go(direction: 1 | -1) {
     if (products.length === 0) return;
@@ -318,6 +332,44 @@ export function SplitPromoBanner() {
   const backgroundImage = current?.images?.[1] ?? foregroundImage;
   const hasDiscount = current?.discountPercent > 0;
   const tag = current ? tagFor(current) : "";
+
+  // Get wishlisted state for current product
+  const wishlisted = id ? !!wishlistedMap[id] : false;
+
+  // Reset cart state when changing products
+  useEffect(() => {
+    setCartState("idle");
+  }, [id]);
+
+  async function handleWishlist(e: React.MouseEvent) {
+    e.preventDefault();
+    if (!id) return;
+    const next = !wishlisted;
+    setWishlistedMap(prev => ({ ...prev, [id]: next }));
+    try {
+      if (next) await apiClient.post("/wishlist", { productId: id });
+      else await apiClient.delete(`/wishlist/${id}`);
+      refresh();
+    } catch {
+      setWishlistedMap(prev => ({ ...prev, [id]: !next }));
+    }
+  }
+
+  async function handleAddToCart(e: React.MouseEvent) {
+    e.preventDefault();
+    const defaultVariantId = current?.defaultVariantId;
+    if (!defaultVariantId) return;
+    setCartState("adding");
+    try {
+      await apiClient.post("/cart/items", { variantId: defaultVariantId, quantity: 1 });
+      setCartState("added");
+      refresh();
+    } catch {
+      setCartState("error");
+    } finally {
+      setTimeout(() => setCartState("idle"), 1500);
+    }
+  }
 
   return (
     <Reveal>
@@ -455,19 +507,44 @@ export function SplitPromoBanner() {
 
                         {/* Hover quick-actions */}
                         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex translate-y-2 justify-center gap-2 pb-3 opacity-0 transition-all duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-hover:pointer-events-auto sm:gap-3 sm:pb-4">
-                          {quickActions.map(({ Icon, label }, i) => (
-                            <button
-                              key={label}
-                              type="button"
-                              aria-label={label}
-                              onClick={(e) => e.preventDefault()}
-                              style={{ transitionDelay: `${i * 60}ms` }}
-                              className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-ink)] text-[var(--color-cream)] shadow-lg transition-colors duration-300 hover:bg-[var(--color-gold,#b98a4e)] sm:h-9 sm:w-9"
-                            >
-                              <Icon size={14} strokeWidth={1.5} className="sm:hidden" />
-                              <Icon size={15} strokeWidth={1.5} className="hidden sm:block" />
-                            </button>
-                          ))}
+                          <button
+                            type="button"
+                            aria-label="Quick view"
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-ink)] text-[var(--color-cream)] shadow-lg transition-colors duration-300 hover:bg-[var(--color-gold,#b98a4e)] sm:h-9 sm:w-9"
+                          >
+                            <Eye size={14} strokeWidth={1.5} className="sm:hidden" />
+                            <Eye size={15} strokeWidth={1.5} className="hidden sm:block" />
+                          </button>
+
+                          <button
+                            type="button"
+                            aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
+                            aria-pressed={wishlisted}
+                            onClick={handleWishlist}
+                            className={`flex h-8 w-8 items-center justify-center rounded-full shadow-lg transition-colors duration-300 sm:h-9 sm:w-9 ${
+                              wishlisted
+                                ? "bg-[var(--color-gold,#b98a4e)] text-white"
+                                : "bg-[var(--color-ink)] text-[var(--color-cream)] hover:bg-[var(--color-gold,#b98a4e)]"
+                            }`}
+                          >
+                            <Heart size={14} strokeWidth={1.5} fill={wishlisted ? "currentColor" : "none"} className="sm:hidden" />
+                            <Heart size={15} strokeWidth={1.5} fill={wishlisted ? "currentColor" : "none"} className="hidden sm:block" />
+                          </button>
+
+                          <button
+                            type="button"
+                            aria-label={cartState === "added" ? "Added to cart" : "Add to cart"}
+                            onClick={handleAddToCart}
+                            disabled={cartState === "adding"}
+                            className={`flex h-8 w-8 items-center justify-center rounded-full shadow-lg transition-colors duration-300 disabled:opacity-50 sm:h-9 sm:w-9 ${
+                              cartState === "added"
+                                ? "bg-[var(--color-gold,#b98a4e)] text-white"
+                                : "bg-[var(--color-ink)] text-[var(--color-cream)] hover:bg-[var(--color-gold,#b98a4e)]"
+                            }`}
+                          >
+                            <ShoppingBag size={14} strokeWidth={1.5} className="sm:hidden" />
+                            <ShoppingBag size={15} strokeWidth={1.5} className="hidden sm:block" />
+                          </button>
                         </div>
                       </div>
 

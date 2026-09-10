@@ -3,45 +3,37 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient, ApiClientError } from "@/lib/api-client";
-// import { setAccessToken } from "@/lib/auth";
 import { AuthCard, AuthInput } from "@/components/AuthCard";
 
-function OtpForm() {
+function ResetPasswordForm() {
   const router = useRouter();
   const params = useSearchParams();
   const identifier = params.get("identifier") ?? "";
-  const purpose = params.get("purpose") ?? "register";
 
   const [code, setCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  // async function handleSubmit(e: React.FormEvent) {
-  //   e.preventDefault();
-  //   setError(null);
-  //   setSubmitting(true);
-  //   try {
-  //     const data = await apiClient.post<{ accessToken: string }>(
-  //       "/auth/otp/verify",
-  //       { identifier, code, purpose },
-  //       { auth: false },
-  //     );
-  //     setAccessToken(data.accessToken);
-  //     router.push("/account");
-  //   } catch (err) {
-  //     setError(err instanceof ApiClientError ? err.message : "Invalid or expired code.");
-  //   } finally {
-  //     setSubmitting(false);
-  //   }
-  // }
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (newPassword !== confirmPassword) {
+      setError("Passwords don't match.");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await apiClient.post("/auth/otp/verify", { identifier, code, purpose }, { auth: false });
-      router.push("/account");
+      await apiClient.post(
+        "/auth/password/reset",
+        { identifier, code, newPassword },
+        { auth: false },
+      );
+      router.push("/login?reset=success");
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : "Invalid or expired code.");
     } finally {
@@ -52,28 +44,26 @@ function OtpForm() {
   async function handleResend() {
     if (resendCooldown > 0) return;
     try {
+      const isEmail = identifier.includes("@");
       await apiClient.post(
-        "/auth/otp/resend",
-        { identifier, channel: identifier.includes("@") ? "email" : "sms", purpose },
+        "/auth/password/forgot",
+        isEmail ? { email: identifier } : { phone: identifier },
         { auth: false },
       );
       setResendCooldown(30);
       const timer = setInterval(() => {
         setResendCooldown((c) => {
-          if (c <= 1) {
-            clearInterval(timer);
-            return 0;
-          }
+          if (c <= 1) { clearInterval(timer); return 0; }
           return c - 1;
         });
       }, 1000);
     } catch {
-      // resend failures are non-fatal — the user can just try again
+      // resend failures are non-fatal
     }
   }
 
   return (
-    <AuthCard eyebrow="Verify" title={`Enter the code sent to ${identifier || "you"}`}>
+    <AuthCard eyebrow="Reset password" title={`Enter the code sent to ${identifier || "you"}`}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <AuthInput
           type="text"
@@ -83,9 +73,23 @@ function OtpForm() {
           onChange={(e) => setCode(e.target.value)}
           required
         />
+        <AuthInput
+          type="password"
+          placeholder="New password"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          required
+        />
+        <AuthInput
+          type="password"
+          placeholder="Confirm new password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+        />
         {error && <p className="text-sm text-red-700">{error}</p>}
         <button type="submit" disabled={submitting} className="pill mt-2 justify-center disabled:opacity-60">
-          {submitting ? "Verifying…" : "Verify"}
+          {submitting ? "Resetting…" : "Reset password"}
         </button>
       </form>
       <button
@@ -99,10 +103,10 @@ function OtpForm() {
   );
 }
 
-export default function OtpPage() {
+export default function ResetPasswordPage() {
   return (
     <Suspense fallback={null}>
-      <OtpForm />
+      <ResetPasswordForm />
     </Suspense>
   );
 }
