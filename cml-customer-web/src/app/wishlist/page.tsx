@@ -80,7 +80,9 @@ function WishlistGrid({ items: initialItems }: { items: WishlistItem[] }) {
     setBusyId(item.id);
     setMessage(null);
     try {
-      const variant = item.product.variants[0];
+      const variant = item.product.variants?.[0];
+      if (!variant) throw new Error("Product variant not found.");
+ 
       await apiClient.post("/cart/items", { variantId: variant.id, quantity: 1 });
       await apiClient.delete(`/wishlist/${item.product.id}`);
       setItems((cur) => cur.filter((i) => i.id !== item.id));

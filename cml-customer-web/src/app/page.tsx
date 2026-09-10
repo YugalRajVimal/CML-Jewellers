@@ -5,8 +5,8 @@ import { ArrowRight } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { FeaturedCategories } from "@/components/FeaturedCategories";
 import { StatBand } from "@/components/StatBand";
-import { EditorialSplit } from "@/components/EditorialSplit";
-import { ProductTabsSection } from "@/components/ProductTabsSection";
+import { AboutStatsSection } from "@/components/EditorialSplit";
+import { JewelCollectionsSection } from "@/components/ProductTabsSection";
 import { MarqueeStrip } from "@/components/MarqueeStrip";
 import { SplitPromoBanner } from "@/components/SplitPromoBanner";
 import { PromoTiles } from "@/components/PromoTiles";
@@ -15,6 +15,10 @@ import { Testimonials } from "@/components/Testimonials";
 import { NewsletterBand } from "@/components/NewsletterBand";
 import { FirstVisitModal } from "@/components/FirstVisitModal";
 import { Sparkle } from "@/components/motion/Sparkle";
+import { HeroSection } from "@/components/HeroSection";
+
+import {FeatureStrip} from "@/components/FeatureStrip"
+
 
 export default function Home() {
   const reduce = useReducedMotion();
@@ -23,7 +27,7 @@ export default function Home() {
     <>
       <FirstVisitModal />
 
-      <section className="relative mx-auto grid max-w-7xl gap-10 overflow-hidden px-6 py-16 lg:grid-cols-2 lg:items-center lg:py-24">
+      {/* <section className="relative mx-auto grid max-w-7xl gap-10 overflow-hidden px-6 py-16 lg:grid-cols-2 lg:items-center lg:py-24">
         <Sparkle className="absolute left-8 top-10 hidden lg:block" size={14} delay={0} />
         <Sparkle className="absolute left-24 top-28 hidden lg:block" size={9} delay={0.8} />
         <Sparkle className="absolute left-[38%] top-16 hidden lg:block" size={11} delay={1.4} />
@@ -61,16 +65,23 @@ export default function Home() {
         </div>
   
   
-      </section>
+      </section> */}
 
+
+<HeroSection />
       <FeaturedCategories />
-      <StatBand />
-      <EditorialSplit />
-      <ProductTabsSection />
+
+      {/* <StatBand /> */}
+      <AboutStatsSection />
+
+<FeatureStrip/>
+
+      <JewelCollectionsSection />
       <MarqueeStrip />
+
       <SplitPromoBanner />
       <PromoTiles />
-      <LogoStrip />
+      {/* <LogoStrip /> */}
       <Testimonials />
       <NewsletterBand />
     </>

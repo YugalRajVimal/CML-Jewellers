@@ -158,3 +158,15 @@ h1, h2, h3, h4,
     animation: none;
   }
 }
+
+@font-face {
+  font-family: "Marcellus";
+  src: url("/Font/Marcellus/Marcellus-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+.font-marcellus {
+  font-family: "Marcellus", serif;
+}

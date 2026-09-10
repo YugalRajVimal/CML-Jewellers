@@ -36,15 +36,27 @@ function DottedMap() {
     }
   }
 
+  // Add the background image using absolute positioning in a wrapper div
   return (
-    <svg viewBox="0 0 460 220" className="h-full w-full" aria-hidden>
-      {dots.map((d, i) => (
-        <circle key={i} cx={d.x} cy={d.y} r={1.6} fill="var(--color-stone)" opacity={0.5} />
-      ))}
-      {PINS.map((pin, i) => (
-        <Pin key={i} x={pin.x} y={pin.y} delay={pin.delay} />
-      ))}
-    </svg>
+    <div className="relative h-full w-full">
+      {/* Background Image */}
+      <img
+        src="/dot-map.webp"
+        alt=""
+        aria-hidden
+        className="absolute inset-0 z-0 h-full w-full object-cover"
+        draggable={false}
+      />
+      {/* SVG Dots and Pins */}
+      <svg viewBox="0 0 460 220" className="relative z-10 h-full w-full" aria-hidden>
+        {/* {dots.map((d, i) => (
+          <circle key={i} cx={d.x} cy={d.y} r={1.6} fill="var(--color-stone)" opacity={0.5} />
+        ))} */}
+        {PINS.map((pin, i) => (
+          <Pin key={i} x={pin.x} y={pin.y} delay={pin.delay} />
+        ))}
+      </svg>
+    </div>
   );
 }
 
@@ -87,8 +99,8 @@ export function NewsletterBand() {
         </div>
 
         <div>
-          <h2 className="font-display text-3xl text-[var(--color-ink)]">Stay Informed, Stay Ahead</h2>
-          <p className="mt-3 text-sm text-[var(--color-stone)]">
+          <h2 className="font-marcellus text-3xl text-[var(--color-ink)]">Stay Informed, Stay Ahead</h2>
+          <p className="mt-3 font-marcellus text-sm text-[var(--color-stone)]">
             New collections and workshop notes, a couple of times a month.
           </p>
 
