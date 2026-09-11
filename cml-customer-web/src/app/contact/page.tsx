@@ -222,10 +222,56 @@ import { useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Mail, MapPin, Phone } from "lucide-react";
 
+// Updated contact details as per instructions
 const CONTACT_DETAILS = [
-  { Icon: Phone, label: "Customer support", value: "+91 98765 43210" },
-  { Icon: Mail, label: "Email", value: "support@cmljewellers.com" },
-  { Icon: MapPin, label: "Hours", value: "Mon–Sat, 10am–7pm IST" },
+  {
+    Icon: MapPin,
+    label: "Address",
+    value:
+      "H NO. 13-2-267/A/56, SHIV LAL NAGAR, Rahimpura, Hyderabad, Hyderabad, Telangana, 500006",
+  },
+  {
+    Icon: Phone,
+    label: "Phone Number",
+    value: (
+      <a href="tel:7799035111" className="hover:underline">
+        7799035111
+      </a>
+    ),
+  },
+  {
+    Icon: Phone,
+    label: "WhatsApp Number",
+    value: (
+      <a
+        href="https://wa.me/7799025111"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="hover:underline"
+      >
+        7799025111
+      </a>
+    ),
+  },
+  {
+    Icon: Mail,
+    label: "Email",
+    value: (
+      <a href="mailto:cmlfashionjewellery@gmail.com" className="hover:underline break-all">
+        cmlfashionjewellery@gmail.com
+      </a>
+    ),
+  },
+  {
+    Icon: MapPin,
+    label: "GST",
+    value: "36BKXPR3784E2ZC",
+  },
+  {
+    Icon: MapPin,
+    label: "Hours",
+    value: "Mon–Sat, 10am–7pm IST",
+  },
 ];
 
 export default function ContactPage() {
@@ -235,8 +281,6 @@ export default function ContactPage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // No /contact endpoint exists in the API contract yet — this gives the
-    // person feedback locally until that's added.
     setSubmitted(true);
   }
 
@@ -282,7 +326,7 @@ export default function ContactPage() {
                 <p className="text-[10px] tracking-[0.15em] text-[var(--color-stone,#6b6154)] sm:text-xs sm:tracking-[0.2em]">
                   {label.toUpperCase()}
                 </p>
-                <p className="mt-1 text-base text-[var(--color-ink,#1c1c1c)] sm:text-lg">{value}</p>
+                <p className="mt-1 text-base text-[var(--color-ink,#1c1c1c)] sm:text-lg break-all">{value}</p>
               </div>
             </div>
           ))}

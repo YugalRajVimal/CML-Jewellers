@@ -63,3 +63,12 @@ export const resetPasswordSchema = z.object({
 export const refreshTokenSchema = z.object({
   refreshToken: z.string().min(10).optional(), // optional because it may arrive via httpOnly cookie
 });
+
+export const sendContactVerificationSchema = z.object({
+  channel: z.enum(['email', 'sms']),
+});
+
+export const confirmContactVerificationSchema = z.object({
+  channel: z.enum(['email', 'sms']),
+  code: z.string().length(6),
+});

@@ -134,29 +134,6 @@ function formatPrice(value: number) {
   })}`;
 }
 
-function RatingStars({ value, count }: { value: number; count?: number }) {
-  const rounded = Math.round(value);
-  return (
-    <div className="flex items-center gap-1">
-      <div className="flex items-center gap-0.5" aria-label={`Rated ${value} out of 5`}>
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Star
-            key={i}
-            size={13}
-            strokeWidth={1.5}
-            className={
-              i < rounded
-                ? "fill-[var(--color-gold,#b98a4e)] text-[var(--color-gold,#b98a4e)]"
-                : "text-[var(--color-stone-light,#d8c9ab)]"
-            }
-          />
-        ))}
-      </div>
-      {!!count && <span className="text-[11px] text-[var(--color-stone,#9a8f7c)]">({count})</span>}
-    </div>
-  );
-}
-
 // Builds "Yellow Gold • 18K • Pearl" from the real attributes object,
 // skipping anything the product doesn't have (e.g. stone: "None").
 function attributeLine(attributes: Record<string, string> | undefined): string {
@@ -348,7 +325,27 @@ export function ProductCard({ product, index = 0 }: { product: Product; index?: 
             >
               {product.name}
             </p>
-            <RatingStars value={p.ratingAvg ?? 0} count={p.ratingCount} />
+            {typeof product.ratingCount === "number" && product.ratingCount > 0 && (
+              <div className="mt-1 flex items-center gap-1.5">
+                <div className="flex items-center gap-0.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star
+                      key={i}
+                      size={14}
+                      strokeWidth={1.5}
+                      className={
+                        i < Math.round(product.ratingAvg ?? 0)
+                          ? "fill-[var(--color-gold)] text-[var(--color-gold)]"
+                          : "text-[var(--color-stone-light)]"
+                      }
+                    />
+                  ))}
+                </div>
+                <span className="text-xs text-[var(--color-stone)]">
+                  {product.ratingAvg?.toFixed(1)} ({product.ratingCount} review{product.ratingCount === 1 ? "" : "s"})
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="mt-2 flex items-end justify-between gap-2">

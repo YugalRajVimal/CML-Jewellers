@@ -216,8 +216,8 @@
 
 "use client";
 
-import { useState } from "react";
-import { Heart, Minus, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Heart, Minus, Plus, Star } from "lucide-react";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { useAsync } from "@/lib/use-async";
 import { Gallery } from "./Gallery";
@@ -225,8 +225,11 @@ import { VariantSelector } from "./VariantSelector";
 import { ProductCard } from "@/components/ProductCard";
 import { useRouter } from "next/navigation";
 import { useCommerce } from "@/lib/commerce-context";
+import { useAuth } from "@/lib/auth-context";
+import Link from "next/link";
 
-const TABS = ["Description", "Specifications", "Shipping & Returns"] as const;
+// const TABS = ["Description", "Specifications", "Shipping & Returns"] as const;
+const TABS = ["Description", "Specifications", "Shipping & Returns", "Reviews"] as const;
 
 type ProductAttributes = Record<string, string>;
 
@@ -274,10 +277,12 @@ function formatPrice(value: number) {
 }
 
 export function ProductDetail({ slug }: { slug: string }) {
+  
   const state = useAsync(
     () => apiClient.get<ProductDetailResponse>(`/products/${slug}`),
     (data) => !data?.product,
   );
+
 
   if (state.status === "loading") {
     return (
@@ -312,6 +317,69 @@ export function ProductDetail({ slug }: { slug: string }) {
   );
 }
 
+function ReviewForm({ productId, onSubmitted }: { productId: string; onSubmitted: () => void }) {
+  const [rating, setRating] = useState(5);
+  const [title, setTitle] = useState("");
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await apiClient.post("/reviews", { productId, rating, title, comment });
+      setDone(true);
+      onSubmitted();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : "Couldn't submit your review.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (done) {
+    return <p className="text-sm text-[var(--color-stone)]">Thanks! Your review is pending moderation.</p>;
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mb-8 flex flex-col gap-3 border-b border-[var(--color-stone-light)] pb-8">
+      <div className="flex items-center gap-1">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <button type="button" key={i} onClick={() => setRating(i + 1)}>
+            <Star
+              size={20}
+              strokeWidth={1.5}
+              className={i < rating ? "fill-[var(--color-gold)] text-[var(--color-gold)]" : "text-[var(--color-stone-light)]"}
+            />
+          </button>
+        ))}
+      </div>
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Title (optional)"
+        className="border border-[var(--color-stone-light)] px-3 py-2 text-sm"
+      />
+      <textarea
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        placeholder="Share your thoughts on this piece…"
+        rows={3}
+        className="border border-[var(--color-stone-light)] px-3 py-2 text-sm"
+        required
+      />
+      {error && <p className="text-sm text-red-700">{error}</p>}
+      <button type="submit" disabled={submitting} className="pill w-fit disabled:opacity-60">
+        {submitting ? "Submitting…" : "Submit Review"}
+      </button>
+    </form>
+  );
+}
+
 function ProductDetailLoaded({
   product,
   variants,
@@ -330,6 +398,7 @@ function ProductDetailLoaded({
   const [busy, setBusy] = useState(false);
   const router = useRouter();
   const { refresh } = useCommerce();
+  const {isLoggedIn} = useAuth();
 
   async function handleBuyNow() {
     setCartMessage(null);
@@ -381,6 +450,34 @@ function ProductDetailLoaded({
       setWishlisted(!next); // revert on failure
     }
   }
+
+  type Review = {
+    _id: string;
+    rating: number;
+    title?: string;
+    comment?: string;
+    createdAt: string;
+    userId?: { name?: string };
+  };
+  
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  
+  async function loadReviews() {
+    setReviewsLoading(true);
+    try {
+      const resp = await apiClient.get<{ reviews: Review[] }>(`/reviews/product/${product._id}`);
+      setReviews(resp.reviews ?? []);
+    } catch {
+      setReviews([]);
+    } finally {
+      setReviewsLoading(false);
+    }
+  }
+  
+  useEffect(() => {
+    if (activeTab === "Reviews") loadReviews();
+  }, [activeTab, product._id]);
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-12">
@@ -506,6 +603,33 @@ function ProductDetailLoaded({
                   Free shipping on prepaid orders. 7-day returns on unworn, tagged pieces.
                 </p>
               )}
+              {activeTab === "Reviews" && (
+  <div>
+    {isLoggedIn ? (
+      <ReviewForm productId={product._id} onSubmitted={loadReviews} />
+    ) : (
+      <p className="mb-6 text-sm">
+        <Link href="/login" className="underline">Log in</Link> to write a review.
+      </p>
+    )}
+    {reviewsLoading && <p>Loading reviews…</p>}
+    {!reviewsLoading && reviews.length === 0 && <p>No reviews yet — be the first.</p>}
+    {reviews.map((r) => (
+      <div key={r._id} className="mb-5 border-b border-[var(--color-stone-light)] pb-5">
+        <div className="flex items-center gap-2">
+          <div className="flex">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Star key={i} size={13} className={i < r.rating ? "fill-[var(--color-gold)] text-[var(--color-gold)]" : "text-[var(--color-stone-light)]"} />
+            ))}
+          </div>
+          <span className="text-xs text-[var(--color-stone)]">{r.userId?.name ?? "Verified Customer"}</span>
+        </div>
+        {r.title && <p className="mt-1 font-medium text-[var(--color-ink)]">{r.title}</p>}
+        {r.comment && <p className="mt-1">{r.comment}</p>}
+      </div>
+    ))}
+  </div>
+)}
             </div>
           </div>
         </div>

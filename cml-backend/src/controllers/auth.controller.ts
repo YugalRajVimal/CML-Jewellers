@@ -3,8 +3,46 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/apiResponse';
 import { env } from '../config/env';
 import * as authService from '../services/auth.service';
+import { User } from '../models/User.model';
+import * as otpService from '../services/otp.service';
+import { AppError } from '@/utils/AppError';
 
 const REFRESH_COOKIE_NAME = 'refreshToken';
+
+export const sendContactVerification = asyncHandler(async (req: Request, res: Response) => {
+  const { channel } = req.body as { channel: 'email' | 'sms' };
+  const user = await User.findById(req.user!.sub);
+  if (!user) throw AppError.notFound('User not found');
+
+  const identifier = channel === 'email' ? user.email : user.phone;
+  if (!identifier) throw AppError.badRequest(`No ${channel === 'email' ? 'email' : 'phone number'} on file`, 'NO_CONTACT_ON_FILE');
+
+  if (channel === 'email' && user.emailVerified) throw AppError.badRequest('Email already verified', 'ALREADY_VERIFIED');
+  if (channel === 'sms' && user.phoneVerified) throw AppError.badRequest('Phone already verified', 'ALREADY_VERIFIED');
+
+  await otpService.requestOtp(identifier, channel, 'verify_contact');
+  sendSuccess(res, { message: 'Verification code sent' });
+});
+
+export const confirmContactVerification = asyncHandler(async (req: Request, res: Response) => {
+  const { channel, code } = req.body as { channel: 'email' | 'sms'; code: string };
+  const user = await User.findById(req.user!.sub);
+  if (!user) throw AppError.notFound('User not found');
+
+  const identifier = channel === 'email' ? user.email : user.phone;
+  if (!identifier) throw AppError.badRequest(`No ${channel === 'email' ? 'email' : 'phone number'} on file`, 'NO_CONTACT_ON_FILE');
+
+  await otpService.verifyOtp(identifier, 'verify_contact', code);
+
+  if (channel === 'email') user.emailVerified = true;
+  else user.phoneVerified = true;
+  await user.save();
+
+  sendSuccess(res, { message: `${channel === 'email' ? 'Email' : 'Phone'} verified`, data: {
+    emailVerified: user.emailVerified,
+    phoneVerified: user.phoneVerified,
+  }});
+});
 
 function setRefreshCookie(res: Response, token: string): void {
   res.cookie(REFRESH_COOKIE_NAME, token, {
@@ -41,7 +79,8 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   sendSuccess(res, {
     message: 'Login successful',
     data: {
-      user: { id: user._id, name: user.name, email: user.email, phone: user.phone },
+      user: { id: user._id, name: user.name, email: user.email, phone: user.phone,    emailVerified: user.emailVerified,
+        phoneVerified: user.phoneVerified, },
       accessToken: tokens.accessToken,
     },
   });

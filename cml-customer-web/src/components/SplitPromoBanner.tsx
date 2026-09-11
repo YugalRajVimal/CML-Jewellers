@@ -260,7 +260,7 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Eye, Heart, ShoppingBag } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, Heart, ShoppingBag, Star } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useAsync } from "@/lib/use-async";
 import type { Product } from "@/lib/types";
@@ -440,6 +440,29 @@ export function SplitPromoBanner() {
                       )}
                     </p>
                   )}
+                  {/* Rating display for left/large card */}
+                  {typeof current?.ratingCount === "number" && current.ratingCount > 0 && (
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <div className="flex items-center gap-0.5">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star
+                            key={i}
+                            size={15}
+                            strokeWidth={1.5}
+                            className={
+                              i < Math.round(current.ratingAvg ?? 0)
+                                ? "fill-[var(--color-gold)] text-[var(--color-gold)]"
+                                : "text-[var(--color-stone-light)]"
+                            }
+                          />
+                        ))}
+                      </div>
+                      <span className="text-xs text-[var(--color-stone)]">
+                        {current.ratingAvg?.toFixed(1)} ({current.ratingCount} review
+                        {current.ratingCount === 1 ? "" : "s"})
+                      </span>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             </AnimatePresence>
@@ -550,6 +573,29 @@ export function SplitPromoBanner() {
 
                       {tag && <p className="mt-3 text-xs text-[var(--color-gold)] sm:mt-4">{tag}</p>}
                       <p className="font-display text-base text-[var(--color-ink)] sm:text-lg">{current.name}</p>
+                      {/* Rating display for carousel card */}
+                      {typeof current?.ratingCount === "number" && current.ratingCount > 0 && (
+                        <div className="mt-1 flex items-center gap-1.5">
+                          <div className="flex items-center gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                size={14}
+                                strokeWidth={1.5}
+                                className={
+                                  i < Math.round(current.ratingAvg ?? 0)
+                                    ? "fill-[var(--color-gold)] text-[var(--color-gold)]"
+                                    : "text-[var(--color-stone-light)]"
+                                }
+                              />
+                            ))}
+                          </div>
+                          <span className="text-xs text-[var(--color-stone)]">
+                            {current.ratingAvg?.toFixed(1)} ({current.ratingCount} review
+                            {current.ratingCount === 1 ? "" : "s"})
+                          </span>
+                        </div>
+                      )}
                       {typeof current.basePrice === "number" && (
                         <p className="mt-1 text-sm text-[var(--color-stone)]">
                           {hasDiscount && typeof current.mrp === "number" ? (

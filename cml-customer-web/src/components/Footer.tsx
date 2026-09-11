@@ -109,14 +109,20 @@ const RESOURCES = [
   { label: "Accessibility", href: "/accessibility" },
 ];
 
+// Updated Enquiries and Company details
 const ENQUIRIES = [
-  { label: "General", email: "contactus@cmljewellers.com" },
-  { label: "Corporate", email: "b2b@cmljewellers.com" },
-  { label: "HR", email: "careers@cmljewellers.com" },
-  { label: "Complaint", email: "complaint@cmljewellers.com" },
+  { label: "Email", email: "cmlfashionjewellery@gmail.com" },
+  { label: "Phone", phone: "7799035111" },
+  { label: "WhatsApp", whatsapp: "7799025111" },
 ];
 
 const PAYMENT_METHODS = ["Visa", "Mastercard", "PayPal", "Amex", "RuPay", "GPay", "UPI"];
+
+const COMPANY_DETAILS = {
+  address:
+    "H NO. 13-2-267/A/56, SHIV LAL NAGAR, Rahimpura, Hyderabad, Hyderabad, Telangana, 500006",
+  gst: "36BKXPR3784E2ZC",
+};
 
 export function Footer() {
   return (
@@ -142,6 +148,19 @@ export function Footer() {
           <p className="mt-4 max-w-xs text-sm leading-relaxed text-[var(--color-stone-light)]/80">
             Handcrafted gold and gemstone jewellery, made to be kept and passed down.
           </p>
+
+          {/* Company address */}
+          <div className="mt-6 text-xs text-[var(--color-stone-light)]/80">
+            <p>
+              <span className="font-display text-[var(--color-cream)]">Address:</span>
+              <br />
+              {COMPANY_DETAILS.address}
+            </p>
+            <p className="mt-2">
+              <span className="font-display text-[var(--color-cream)]">GST:</span>{" "}
+              {COMPANY_DETAILS.gst}
+            </p>
+          </div>
 
           <p className="font-display mt-8 text-lg text-[var(--color-cream)]">Download The CML App</p>
           <div className="mt-4 flex flex-wrap gap-3">
@@ -172,7 +191,6 @@ export function Footer() {
             </a>
           </div>
         </div>
-
         <FooterColumn title="Services" links={SERVICES} />
         <FooterColumn title="Support" links={SUPPORT} />
         <FooterColumn title="Resources" links={RESOURCES} />
@@ -183,14 +201,39 @@ export function Footer() {
         <div className="mx-auto max-w-7xl px-6 py-10">
           <p className="font-display text-lg text-[var(--color-cream)]">24x7 Enquiry Support (All Days)</p>
           <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {ENQUIRIES.map((item) => (
-              <p key={item.label} className="text-sm">
-                <span className="font-display text-[var(--color-cream)]">{item.label}:</span>{" "}
-                <a href={`mailto:${item.email}`} className="text-[var(--color-stone-light)]/80 hover:text-[var(--color-gold-light)]">
-                  {item.email}
-                </a>
-              </p>
-            ))}
+            <p className="text-sm">
+              <span className="font-display text-[var(--color-cream)]">Email:</span>{" "}
+              <a
+                href="mailto:cmlfashionjewellery@gmail.com"
+                className="text-[var(--color-stone-light)]/80 hover:text-[var(--color-gold-light)]"
+              >
+                cmlfashionjewellery@gmail.com
+              </a>
+            </p>
+            <p className="text-sm">
+              <span className="font-display text-[var(--color-cream)]">Phone:</span>{" "}
+              <a
+                href="tel:7799035111"
+                className="text-[var(--color-stone-light)]/80 hover:text-[var(--color-gold-light)]"
+              >
+                7799035111
+              </a>
+            </p>
+            <p className="text-sm">
+              <span className="font-display text-[var(--color-cream)]">WhatsApp:</span>{" "}
+              <a
+                href="https://wa.me/7799025111"
+                className="text-[var(--color-stone-light)]/80 hover:text-[var(--color-gold-light)]"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                7799025111
+              </a>
+            </p>
+            <p className="text-sm">
+              <span className="font-display text-[var(--color-cream)]">GST:</span>{" "}
+              {COMPANY_DETAILS.gst}
+            </p>
           </div>
         </div>
       </div>
@@ -211,9 +254,13 @@ export function Footer() {
             ))}
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-4">
             <Link href="/terms" className="hover:text-[var(--color-gold-light)]">
               Terms &amp; Conditions
+            </Link>
+            <span className="text-white/20">|</span>
+            <Link href="/refunds" className="hover:text-[var(--color-gold-light)]">
+              Refunds &amp; Cancellations
             </Link>
             <span className="text-white/20">|</span>
             <Link href="/privacy" className="hover:text-[var(--color-gold-light)]">

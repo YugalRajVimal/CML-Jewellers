@@ -11,7 +11,10 @@ import {
   resendOtpSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  sendContactVerificationSchema,
+  confirmContactVerificationSchema,
 } from '../validators/auth.validators';
+import { requireAuth } from '../middleware/auth.middleware';
 
 const router = Router();
 
@@ -26,5 +29,7 @@ router.post('/otp/resend', otpRateLimiter, validate(resendOtpSchema), otpControl
 
 router.post('/password/forgot', authRateLimiter, validate(forgotPasswordSchema), authController.forgotPassword);
 router.post('/password/reset', authRateLimiter, validate(resetPasswordSchema), authController.resetPasswordHandler);
+router.post('/verify/send', requireAuth, otpRateLimiter, validate(sendContactVerificationSchema), authController.sendContactVerification);
+router.post('/verify/confirm', requireAuth, authRateLimiter, validate(confirmContactVerificationSchema), authController.confirmContactVerification);
 
 export default router;
