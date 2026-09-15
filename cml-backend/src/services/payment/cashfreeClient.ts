@@ -4,8 +4,9 @@ import { env } from '../../config/env';
 import { AppError } from '../../utils/AppError';
 import { logger } from '../../utils/logger';
 
-const CASHFREE_BASE_URL =
-  process.env.CASHFREE_ENV === 'production' ? 'https://api.cashfree.com/pg' : 'https://sandbox.cashfree.com/pg';
+
+  const CASHFREE_BASE_URL =
+  env.cashfree.mode === 'production' ? 'https://api.cashfree.com/pg' : 'https://sandbox.cashfree.com/pg';
 
 const cfClient = axios.create({
   baseURL: CASHFREE_BASE_URL,
@@ -63,7 +64,12 @@ export async function createCashfreeOrder(
       orderStatus: response.data.order_status,
     };
   } catch (error) {
-    logger.error('Cashfree order creation failed', (error as Error).message);
+    const axiosError = error as { response?: { data?: unknown; status?: number }; message: string };
+    logger.error('Cashfree order creation failed', {
+      message: axiosError.message,
+      status: axiosError.response?.status,
+      data: axiosError.response?.data,
+    });
     throw AppError.internal('Failed to create payment session', 'CASHFREE_ORDER_CREATE_FAILED');
   }
 }
@@ -74,7 +80,12 @@ export async function fetchCashfreeOrderStatus(orderId: string): Promise<{ order
     const response = await cfClient.get(`/orders/${orderId}`);
     return { orderStatus: response.data.order_status, raw: response.data };
   } catch (error) {
-    logger.error('Cashfree order status fetch failed', (error as Error).message);
+    const axiosError = error as { response?: { data?: unknown; status?: number }; message: string };
+    logger.error('Cashfree order status fetch failed', {
+      message: axiosError.message,
+      status: axiosError.response?.status,
+      data: axiosError.response?.data,
+    });
     throw AppError.internal('Failed to fetch payment status', 'CASHFREE_STATUS_FETCH_FAILED');
   }
 }
@@ -94,9 +105,10 @@ export function verifyCashfreeWebhookSignature(rawBody: string, timestamp: strin
     .update(timestamp + rawBody)
     .digest('base64');
 
-  try {
-    return crypto.timingSafeEqual(Buffer.from(expectedSignature), Buffer.from(signature));
-  } catch {
-    return false; // length mismatch etc. — treat as invalid rather than throwing
-  }
+    const expectedBuf = Buffer.from(expectedSignature);
+    const receivedBuf = Buffer.from(signature);
+    if (expectedBuf.length !== receivedBuf.length) {
+      return false; // check length explicitly so timingSafeEqual always runs below
+    }
+    return crypto.timingSafeEqual(expectedBuf, receivedBuf);
 }

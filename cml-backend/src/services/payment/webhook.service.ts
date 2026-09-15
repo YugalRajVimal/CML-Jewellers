@@ -4,10 +4,12 @@ import { verifyCashfreeWebhookSignature } from './cashfreeClient';
 import { applyPaymentStatusChange } from './payment.service';
 import { logger } from '../../utils/logger';
 
+
+
 interface CashfreeWebhookBody {
-  type: string; // e.g. "PAYMENT_SUCCESS_WEBHOOK", "PAYMENT_FAILED_WEBHOOK"
+  type: string;
   data: {
-    order: { order_id: string };
+    order: { order_id: string; order_amount?: number }; // add order_amount
     payment?: { payment_status?: string };
   };
 }
@@ -15,7 +17,10 @@ interface CashfreeWebhookBody {
 function mapWebhookEventToStatus(eventType: string): 'Success' | 'Failed' | 'Cancelled' | null {
   if (eventType === 'PAYMENT_SUCCESS_WEBHOOK') return 'Success';
   if (eventType === 'PAYMENT_FAILED_WEBHOOK') return 'Failed';
-  if (eventType === 'PAYMENT_USER_DROPPED_WEBHOOK') return 'Cancelled';
+  // A dropped/abandoned attempt is NOT terminal — the same Cashfree order can
+  // still be completed afterwards. Writing 'Cancelled' here would permanently
+  // block a later legitimate 'Success' event for the same order.
+  if (eventType === 'PAYMENT_USER_DROPPED_WEBHOOK') return null;
   return null;
 }
 
@@ -58,6 +63,16 @@ export async function handleCashfreeWebhook(rawBody: string, timestamp: string, 
   if (!newStatus) {
     logger.info('Ignoring unhandled Cashfree webhook event type', { type: body.type });
     return;
+  }
+
+  const webhookAmount = body.data?.order?.order_amount;
+  if (newStatus === 'Success' && webhookAmount !== undefined && webhookAmount !== payment.amount) {
+    logger.error('Webhook amount mismatch — refusing to confirm order', {
+      paymentId: payment._id,
+      expected: payment.amount,
+      received: webhookAmount,
+    });
+    throw AppError.badRequest('Webhook amount does not match order amount', 'WEBHOOK_AMOUNT_MISMATCH');
   }
 
   await applyPaymentStatusChange(payment, newStatus);

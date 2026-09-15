@@ -10,7 +10,7 @@ import { useCommerce } from "@/lib/commerce-context";
 
 // Backend stores prices as integer paise/cents — divide by 100 for display.
 function formatPrice(value: number) {
-  return `₹${(value / 100).toLocaleString("en-IN", {
+  return `₹${(value).toLocaleString("en-IN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -253,13 +253,14 @@ export function ProductCard({ product, index = 0 }: { product: Product; index?: 
               </span>
             </div>
 
-            {lowStock && (
+          </div>
+
+
+          {lowStock && (
               <span className="text-[11px] font-medium text-[var(--color-maroon,#8a2e1f)]">
                 Only {p.totalAvailable} left
               </span>
             )}
-          </div>
-
           {p.variantCount > 1 && (
             <p className="mt-1 text-[11px] text-[var(--color-stone,#9a8f7c)]">
               {p.variantCount} variants available

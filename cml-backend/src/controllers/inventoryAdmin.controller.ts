@@ -6,6 +6,22 @@ import { Inventory } from '../models/Inventory.model';
 import { InventoryTransaction } from '../models/InventoryTransaction.model';
 import { parsePagination, buildMeta } from '../utils/pagination';
 
+// export const listInventory = asyncHandler(async (req: Request, res: Response) => {
+//   const { page, limit, skip } = parsePagination(req.query as Record<string, unknown>);
+
+//   const filter: Record<string, unknown> = {};
+//   if (req.query.lowStock === 'true') {
+//     filter.$expr = { $lte: ['$available', '$lowStockThreshold'] };
+//   }
+
+//   const [items, total] = await Promise.all([
+//     Inventory.find(filter).populate('variantId', 'sku attributes').skip(skip).limit(limit),
+//     Inventory.countDocuments(filter),
+//   ]);
+
+//   sendSuccess(res, { data: { inventory: items }, meta: buildMeta(page, limit, total) });
+// });
+
 export const listInventory = asyncHandler(async (req: Request, res: Response) => {
   const { page, limit, skip } = parsePagination(req.query as Record<string, unknown>);
 
@@ -14,12 +30,46 @@ export const listInventory = asyncHandler(async (req: Request, res: Response) =>
     filter.$expr = { $lte: ['$available', '$lowStockThreshold'] };
   }
 
+  
+
   const [items, total] = await Promise.all([
-    Inventory.find(filter).populate('variantId', 'sku attributes').skip(skip).limit(limit),
+    Inventory.find(filter)
+      .populate({
+        path: 'variantId',
+        select: 'sku attributes productId',
+        populate: { path: 'productId', select: 'name' },
+      })
+      .skip(skip)
+      .limit(limit),
     Inventory.countDocuments(filter),
   ]);
 
   sendSuccess(res, { data: { inventory: items }, meta: buildMeta(page, limit, total) });
+});
+
+export const adjustInventory = asyncHandler(async (req: Request, res: Response) => {
+  const { variantId, delta, note } = req.body;
+
+  const existing = await Inventory.exists({ variantId });
+if (!existing && delta < 0) {
+  throw AppError.conflict('No inventory record exists for this variant', 'NO_INVENTORY_ROW');
+}
+
+  const inventory = await Inventory.findOneAndUpdate(
+    { variantId, available: { $gte: -delta } },
+    { $inc: { available: delta }, $setOnInsert: { variantId, reserved: 0, sold: 0, damaged: 0, returned: 0 } },
+    { new: true, upsert: true }
+  );
+
+  await InventoryTransaction.create({
+    inventoryId: inventory._id,
+    variantId,
+    type: 'adjustment',
+    qty: delta,
+    note,
+  });
+
+  sendSuccess(res, { message: 'Inventory adjusted', data: { inventory } });
 });
 
 export const getInventoryTransactions = asyncHandler(async (req: Request, res: Response) => {
@@ -38,26 +88,26 @@ export const getInventoryTransactions = asyncHandler(async (req: Request, res: R
  * Manual stock adjustment (e.g. stocktake correction). Directly adjusts `available`
  * and logs an "adjustment" transaction — distinct from purchase/sale/return flows.
  */
-export const adjustInventory = asyncHandler(async (req: Request, res: Response) => {
-  const { variantId, delta, note } = req.body;
+// export const adjustInventory = asyncHandler(async (req: Request, res: Response) => {
+//   const { variantId, delta, note } = req.body;
 
-  const inventory = await Inventory.findOneAndUpdate(
-    { variantId, available: { $gte: -delta } }, // prevents available from going negative on a negative delta
-    { $inc: { available: delta } },
-    { new: true }
-  );
+//   const inventory = await Inventory.findOneAndUpdate(
+//     { variantId, available: { $gte: -delta } }, // prevents available from going negative on a negative delta
+//     { $inc: { available: delta } },
+//     { new: true }
+//   );
 
-  if (!inventory) {
-    throw AppError.conflict('Adjustment would result in negative available stock', 'INVALID_ADJUSTMENT');
-  }
+//   if (!inventory) {
+//     throw AppError.conflict('Adjustment would result in negative available stock', 'INVALID_ADJUSTMENT');
+//   }
 
-  await InventoryTransaction.create({
-    inventoryId: inventory._id,
-    variantId,
-    type: 'adjustment',
-    qty: delta,
-    note,
-  });
+//   await InventoryTransaction.create({
+//     inventoryId: inventory._id,
+//     variantId,
+//     type: 'adjustment',
+//     qty: delta,
+//     note,
+//   });
 
-  sendSuccess(res, { message: 'Inventory adjusted', data: { inventory } });
-});
+//   sendSuccess(res, { message: 'Inventory adjusted', data: { inventory } });
+// });

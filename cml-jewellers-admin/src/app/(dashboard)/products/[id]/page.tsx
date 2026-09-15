@@ -50,6 +50,24 @@ function ProductDetailInner() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [stockDraft, setStockDraft] = useState<{ variantId: string; delta: string; note: string } | null>(null);
+const [stockSaving, setStockSaving] = useState(false);
+
+async function submitStockAdjust() {
+  if (!stockDraft) return;
+  const delta = parseInt(stockDraft.delta, 10);
+  if (!delta) return;
+  setStockSaving(true);
+  try {
+    await api.adjustInventory(stockDraft.variantId, delta, stockDraft.note || (delta > 0 ? "manual restock" : "manual correction"));
+    setStockDraft(null);
+    // reload this product's variants so the new "available" shows immediately
+    const res = await api.getProduct(id);
+    setVariants(Array.isArray((res.data as any).variants) ? (res.data as any).variants : []);
+  } finally {
+    setStockSaving(false);
+  }
+}
 
   async function load() {
     try {
@@ -198,7 +216,7 @@ function ProductDetailInner() {
 
       <div className="grid lg:grid-cols-3 gap-4">
         <Panel className="lg:col-span-2 p-5">
-          <p className="text-sm font-medium text-ink-900 mb-3">Variants</p>
+        <p className="text-sm font-medium text-ink-900 mb-3">Variants</p>
           <div className="overflow-hidden rounded-lg border border-line">
             <table className="w-full text-sm">
               <thead className="bg-ink-100/40 text-xs text-ink-500">
@@ -207,9 +225,8 @@ function ProductDetailInner() {
                   <th className="text-left px-3 py-2 font-medium">Attribute(s)</th>
                   <th className="text-right px-3 py-2 font-medium">Price</th>
                   <th className="text-right px-3 py-2 font-medium">MRP</th>
-                  {/* Stock fields only if present in variant */}
-                  {/* <th className="text-right px-3 py-2 font-medium">Available</th>
-                  <th className="text-right px-3 py-2 font-medium">Reserved</th> */}
+                  <th className="text-right px-3 py-2 font-medium">Available</th>
+                  <th className="text-right px-3 py-2 font-medium">Adjust</th>
                 </tr>
               </thead>
               <tbody>
@@ -219,15 +236,62 @@ function ProductDetailInner() {
                     <td className="px-3 py-2.5">{v.attributes ? Object.values(v.attributes).join(", ") : ""}</td>
                     <td className="px-3 py-2.5 text-right font-mono text-xs">{formatINR(v.price)}</td>
                     <td className="px-3 py-2.5 text-right font-mono text-xs text-ink-500">{formatINR(v.mrp)}</td>
-                    {/* Show available/reserved only if present */}
-                    {/* v.available/v.reserved */}
+                    <td className="px-3 py-2.5 text-right">
+                      {v.hasInventoryRow === false ? (
+                        <span className="text-xs text-bad font-medium" title="No inventory record exists for this variant">
+                          No stock row
+                        </span>
+                      ) : (
+                        <span className={v.available <= (v.lowStockThreshold ?? 0) ? "font-semibold text-bad" : "font-medium text-ink-900"}>
+                          {v.available}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      {stockDraft?.variantId === (v._id || v.id) ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <input
+                            type="number"
+                            autoFocus
+                            className="w-16 rounded-md border border-line px-1 py-0.5 text-xs"
+                            value={stockDraft ? stockDraft.delta : ""}
+                       
+                            onChange={(e) =>
+                              stockDraft &&
+                              setStockDraft({
+                                variantId: stockDraft.variantId,
+                                delta: e.target.value,
+                                note: stockDraft.note,
+                              })
+                            }
+                            placeholder="±qty"
+                          />
+                    
+                          <Button size="sm" variant="primary" onClick={submitStockAdjust} disabled={stockSaving}>
+                            Save
+                          </Button>
+                          <Button size="sm" variant="secondary" onClick={() => setStockDraft(null)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setStockDraft({ variantId: v._id || v.id, delta: "", note: "" })}
+                        >
+                          Adjust stock
+                        </Button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <p className="mt-2 text-[11px] text-ink-300">Manage stock levels for these variants from Inventory.</p>
-
+          <p className="mt-2 text-[11px] text-ink-300">
+            Positive numbers add stock, negative numbers remove it (e.g. "50" or "-3"). Full transaction history is on the Inventory page.
+          </p>
           <p className="text-sm font-medium text-ink-900 mt-6 mb-3">Attributes</p>
           <dl className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
             {product.attributes &&

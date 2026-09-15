@@ -7,6 +7,9 @@ function required(key: string, fallback?: string): string {
   if (value === undefined) {
     throw new Error(`Missing required environment variable: ${key}`);
   }
+  if (process.env.NODE_ENV === 'production' && value === fallback && fallback !== undefined) {
+    throw new Error(`Refusing to start in production with the default value for ${key} — set it explicitly.`);
+  }
   return value;
 }
 
@@ -60,6 +63,7 @@ export const env = {
     appId: process.env.CASHFREE_APP_ID || '',
     secretKey: process.env.CASHFREE_SECRET_KEY || '',
     webhookSecret: process.env.CASHFREE_WEBHOOK_SECRET || '',
+    mode: (process.env.CASHFREE_ENV === 'production' ? 'production' : 'sandbox') as 'production' | 'sandbox',
   },
 
   cors: {
@@ -69,6 +73,6 @@ export const env = {
 
   superAdmin: {
     email: process.env.SUPER_ADMIN_EMAIL || 'admin@cmljewellers.com',
-    password: process.env.SUPER_ADMIN_PASSWORD || 'ChangeMe123!',
+    password: required('SUPER_ADMIN_PASSWORD', 'ChangeMe123!'),
   },
 };

@@ -384,7 +384,9 @@ export type PaymentStatus = "Created" | "Pending" | "Success" | "Failed" | "Canc
 
 export interface PaymentSession {
   paymentId: string;
-  paymentLink: string;
+  paymentSessionId: string;
+  amount: number;
+  status: PaymentStatus;
 }
 
 export type ReturnStatus = "Requested" | "Approved" | "PickedUp" | "Received" | "Inspected" | "Refunded" | "Rejected" | "Cancelled";

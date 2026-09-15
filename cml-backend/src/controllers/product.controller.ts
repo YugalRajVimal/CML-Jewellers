@@ -79,7 +79,22 @@ export const adminGetProduct = asyncHandler(async (req: Request, res: Response) 
   if (!product) throw AppError.notFound('Product not found');
 
   const variants = await ProductVariant.find({ productId: product._id });
-  sendSuccess(res, { data: { product, variants } });
+  const inventories = await Inventory.find({ variantId: { $in: variants.map((v) => v._id) } });
+  const inventoryByVariant = new Map(inventories.map((i) => [i.variantId.toString(), i]));
+
+  const variantsWithStock = variants.map((v) => {
+    const inv = inventoryByVariant.get(v._id.toString());
+    return {
+      ...v.toObject(),
+      available: inv?.available ?? 0,
+      reserved: inv?.reserved ?? 0,
+      sold: inv?.sold ?? 0,
+      lowStockThreshold: inv?.lowStockThreshold,
+      hasInventoryRow: Boolean(inv), // lets the UI flag a variant with no Inventory row at all (BUG-19 case)
+    };
+  });
+
+  sendSuccess(res, { data: { product, variants: variantsWithStock } });
 });
 
 export const adminCreateProduct = asyncHandler(async (req: Request, res: Response) => {
@@ -121,7 +136,16 @@ export const adminDeleteProduct = asyncHandler(async (req: Request, res: Respons
 export const adminListVariants = asyncHandler(async (req: Request, res: Response) => {
   const { productId } = req.params;
   const variants = await ProductVariant.find({ productId });
-  sendSuccess(res, { data: { variants } });
+  const inventories = await Inventory.find({ variantId: { $in: variants.map((v) => v._id) } });
+  const inventoryByVariant = new Map(inventories.map((i) => [i.variantId.toString(), i]));
+
+  const variantsWithStock = variants.map((v) => ({
+    ...v.toObject(),
+    available: inventoryByVariant.get(v._id.toString())?.available ?? 0,
+    hasInventoryRow: inventoryByVariant.has(v._id.toString()),
+  }));
+
+  sendSuccess(res, { data: { variants: variantsWithStock } });
 });
 
 export const adminCreateVariant = asyncHandler(async (req: Request, res: Response) => {

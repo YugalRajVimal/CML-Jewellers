@@ -161,3 +161,17 @@ export async function getAvailableStock(variantId: mongoose.Types.ObjectId | str
   const inv = await Inventory.findOne({ variantId }).select('available');
   return inv?.available ?? 0;
 }
+
+/** Moves sold stock back to available — used when a *paid* order is cancelled. */
+export async function returnSoldStockToAvailable(items: StockLineItem[], refId?: string): Promise<void> {
+  for (const item of items) {
+    const updated = await Inventory.findOneAndUpdate(
+      { variantId: item.variantId, sold: { $gte: item.qty } },
+      { $inc: { sold: -item.qty, available: item.qty } },
+      { new: true }
+    );
+    if (updated) {
+      await logTransaction(updated._id, item.variantId, 'return', item.qty, refId, 'Cancellation of a paid order');
+    }
+  }
+}

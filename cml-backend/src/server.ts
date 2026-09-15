@@ -2,6 +2,7 @@ import { createApp } from './app';
 import { connectDB } from './config/db';
 import { env } from './config/env';
 import { logger } from './utils/logger';
+import { startReservationExpiryJob } from './jobs/reservationExpiry.job';
 
 async function bootstrap(): Promise<void> {
   await connectDB();
@@ -12,8 +13,11 @@ async function bootstrap(): Promise<void> {
     logger.info(`CML Jewellers API listening on port ${env.port} [${env.nodeEnv}]`);
   });
 
+  const reservationJob = startReservationExpiryJob();
+
   const shutdown = (signal: string) => {
     logger.info(`${signal} received. Shutting down gracefully...`);
+    clearInterval(reservationJob); // NEW
     server.close(() => {
       logger.info('HTTP server closed.');
       process.exit(0);

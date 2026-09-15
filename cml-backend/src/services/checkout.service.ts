@@ -110,11 +110,13 @@ export async function cancelOrder(userId: string, orderId: string, reason?: stri
 
   const wasConfirmed = order.status === 'Confirmed';
 
-  const { releaseStock } = await import('./inventory.service');
-  await releaseStock(
-    order.items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
-    order.orderNumber
-  );
+  const { releaseStock, returnSoldStockToAvailable } = await import('./inventory.service');
+  const stockLines = order.items.map((i) => ({ variantId: i.variantId, qty: i.qty }));
+  if (wasConfirmed) {
+    await returnSoldStockToAvailable(stockLines, order.orderNumber);
+  } else {
+    await releaseStock(stockLines, order.orderNumber);
+  }
 
   order.status = 'Cancelled';
   order.cancelledAt = new Date();
@@ -132,4 +134,25 @@ export async function cancelOrder(userId: string, orderId: string, reason?: stri
   }
 
   return order;
+}
+
+/** Cancels stale Pending orders (no successful payment within the window) and releases their reserved stock. */
+export async function releaseExpiredReservations(olderThanMinutes = 30): Promise<number> {
+  const cutoff = new Date(Date.now() - olderThanMinutes * 60 * 1000);
+  const { releaseStock } = await import('./inventory.service');
+
+  const staleOrders = await Order.find({ status: 'Pending', createdAt: { $lt: cutoff } });
+
+  for (const order of staleOrders) {
+    await releaseStock(
+      order.items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
+      order.orderNumber
+    );
+    order.status = 'Cancelled';
+    order.cancelledAt = new Date();
+    order.cancelReason = 'Reservation expired — no successful payment';
+    await order.save();
+  }
+
+  return staleOrders.length;
 }

@@ -11,27 +11,28 @@ import { useAuth } from "@/lib/auth";
 
 // Transform the new inventory API response to expected rows
 function normalizeInventoryRows(res: any): InventoryRow[] {
-  // Shape: res.data.inventory: Array<{ _id, variantId, available, ... }>
   if (!Array.isArray(res?.data?.inventory)) return [];
-  return res.data.inventory.map((item: any) => ({
-    // Fully flatten to match old InventoryRow shape if needed
-    id: item._id,
-    sku: typeof item.variantId === "object" ? item.variantId.sku : "",
-    productName: item.variantId?.attributes?.size
-      ? `Size ${item.variantId.attributes.size}`
-      : item.variantId?.sku || "", // Give a fallback name if more info is needed
-    available: item.available,
-    reserved: item.reserved,
-    sold: item.sold,
-    damaged: item.damaged,
-    returned: item.returned, // May be ignored in view, but included for type completeness
-    lowStockThreshold: item.lowStockThreshold,
-    createdAt: item.createdAt,
-    updatedAt: item.updatedAt,
-    // Spread out any other fields that may exist
-    ...item,
-  }));
+  return res.data.inventory.map((item: any) => {
+    const variant = typeof item.variantId === "object" ? item.variantId : null;
+    return {
+      id: item._id,
+      variantId: variant?._id ?? item.variantId,
+      sku: variant?.sku || "",
+      productName:
+        variant?.productId?.name || // requires backend populate — see below
+        (variant?.attributes?.size ? `Size ${variant.attributes.size}` : variant?.sku || ""),
+      available: item.available,
+      reserved: item.reserved,
+      sold: item.sold,
+      damaged: item.damaged,
+      returned: item.returned,
+      lowStockThreshold: item.lowStockThreshold,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    };
+  });
 }
+
 
 function InventoryInner() {
   const { can } = useAuth();
@@ -40,30 +41,60 @@ function InventoryInner() {
   const [lowOnly, setLowOnly] = useState(false);
   const [busySku, setBusySku] = useState<string | null>(null);
 
+  // async function load() {
+  //   const inv = await api.listInventory({ limit: 100, lowStockOnly: lowOnly });
+  //   console.log("Inventory API response:", inv); // Debug
+  //   const inventoryRows = normalizeInventoryRows(inv);
+  //   setRows(inventoryRows);
+
+  //   // Load transactions for all SKUs in inventoryRows
+  //   const allSkus = inventoryRows.map((row) => row.sku);
+  //   const txnsResults = await Promise.all(
+  //     allSkus.map((sku) => api.listInventoryTransactions(sku))
+  //   );
+  //   console.log("Inventory transactions API responses:", txnsResults);
+  //   setTxns(txnsResults.flatMap((res) => res.data));
+  // }
+
+
   async function load() {
-    const inv = await api.listInventory({ limit: 100, lowStockOnly: lowOnly });
-    console.log("Inventory API response:", inv); // Debug
+    const inv = await api.listInventory({ limit: 100, lowStock: lowOnly });
     const inventoryRows = normalizeInventoryRows(inv);
     setRows(inventoryRows);
-
-    // Load transactions for all SKUs in inventoryRows
-    const allSkus = inventoryRows.map((row) => row.sku);
-    const txnsResults = await Promise.all(
-      allSkus.map((sku) => api.listInventoryTransactions(sku))
-    );
-    console.log("Inventory transactions API responses:", txnsResults);
-    setTxns(txnsResults.flatMap((res) => res.data));
   }
+
+  // async function loadTransactions(row: InventoryRow) {
+  //   setSelectedRow(row);
+  //   const res = await api.listInventoryTransactions(row.variantId);
+  //   setTxns(res.data);
+  // }
+  
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lowOnly]);
 
-  async function adjust(sku: string, delta: number) {
-    setBusySku(sku);
+  const [adjustDraft, setAdjustDraft] = useState<{ variantId: string; delta: string; note: string } | null>(null);
+
+async function submitAdjust() {
+  if (!adjustDraft) return;
+  const delta = parseInt(adjustDraft.delta, 10);
+  if (!delta) return;
+  setBusySku(adjustDraft.variantId);
+  try {
+    await api.adjustInventory(adjustDraft.variantId, delta, adjustDraft.note || (delta > 0 ? "manual restock" : "manual correction"));
+    setAdjustDraft(null);
+    await load();
+  } finally {
+    setBusySku(null);
+  }
+}
+
+  async function adjust(variantId: string, delta: number) {
+    setBusySku(variantId);
     try {
-      await api.adjustInventory(sku, delta, delta > 0 ? "manual restock" : "manual correction");
+      await api.adjustInventory(variantId, delta, delta > 0 ? "manual restock" : "manual correction");
       await load();
     } finally {
       setBusySku(null);
@@ -120,22 +151,31 @@ function InventoryInner() {
       align: "right",
       render: (r) =>
         can("inventory:write") ? (
-          <div className="flex items-center justify-end gap-1">
+          adjustDraft?.variantId === r.variantId ? (
+            <div className="flex items-center justify-end gap-1">
+              <input
+                type="number"
+                autoFocus
+                className="w-16 rounded-md border border-line px-1 py-0.5 text-xs"
+                value={adjustDraft.delta}
+                onChange={(e) => setAdjustDraft({ ...adjustDraft, delta: e.target.value })}
+                placeholder="±qty"
+              />
+              <button onClick={submitAdjust} disabled={busySku === r.variantId} className="rounded-md border border-line px-2 py-0.5 text-xs hover:bg-ink-100">
+                Save
+              </button>
+              <button onClick={() => setAdjustDraft(null)} className="rounded-md border border-line px-2 py-0.5 text-xs hover:bg-ink-100">
+                Cancel
+              </button>
+            </div>
+          ) : (
             <button
-              onClick={() => adjust(r.sku, -1)}
-              disabled={busySku === r.sku || r.available === 0}
-              className="rounded-md border border-line p-1 hover:bg-ink-100 disabled:opacity-30"
+              onClick={() => setAdjustDraft({ variantId: r.variantId, delta: "", note: "" })}
+              className="rounded-md border border-line px-2 py-0.5 text-xs hover:bg-ink-100"
             >
-              <Minus size={12} />
+              Adjust stock
             </button>
-            <button
-              onClick={() => adjust(r.sku, 1)}
-              disabled={busySku === r.sku}
-              className="rounded-md border border-line p-1 hover:bg-ink-100"
-            >
-              <Plus size={12} />
-            </button>
-          </div>
+          )
         ) : null,
     },
   ];
