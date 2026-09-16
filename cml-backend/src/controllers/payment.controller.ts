@@ -72,3 +72,18 @@ export const cashfreeWebhook = asyncHandler(async (req: Request, res: Response) 
 
   res.status(200).json({ received: true });
 });
+
+export const syncOrderPayment = asyncHandler(async (req: Request, res: Response) => {
+  const { orderId } = req.params;
+  const { Order } = await import('../models/Order.model');
+  const order = await Order.findOne({ _id: orderId, userId: req.user!.sub });
+  if (!order) throw AppError.notFound('Order not found');
+
+  const payment = await Payment.findOne({ orderId: order._id }).sort({ createdAt: -1 });
+  if (!payment) throw AppError.notFound('No payment found for this order');
+
+  const synced = await paymentService.syncPaymentStatus(payment);
+  const updatedOrder = await Order.findById(order._id);
+
+  sendSuccess(res, { data: { payment: synced, order: updatedOrder } });
+});

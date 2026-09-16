@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { apiClient, ApiClientError } from "@/lib/api-client";
@@ -68,6 +68,12 @@ function OrderDetailLoaded({ order, onRefetch }: { order: Order; onRefetch: () =
       setCancelling(false);
     }
   }
+
+  useEffect(() => {
+    if (order?.status === "Pending") {
+      apiClient.post(`/payments/orders/${order.id}/sync`).catch(() => {});
+    }
+  }, [order?.id, order?.status]);
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">

@@ -8,5 +8,6 @@ const router = Router();
 
 router.post('/cashfree/create', requireAuth, validate(createPaymentSessionSchema), paymentController.createPaymentSession);
 router.get('/:id/status', requireAuth, paymentController.getPaymentStatus);
+router.post('/orders/:orderId/sync', requireAuth, paymentController.syncOrderPayment);
 
 export default router;

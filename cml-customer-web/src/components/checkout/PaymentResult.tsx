@@ -40,10 +40,18 @@ export function PaymentResult({ flavor }: { flavor: PaymentFlavor }) {
 
     async function poll() {
       try {
+        // Ask Cashfree directly and update the DB — don't rely on the webhook alone.
+        try {
+          await apiClient.post(`/payments/orders/${orderId}/sync`);
+        } catch {
+          // Sync failing (e.g. no Payment row yet, transient Cashfree error) isn't fatal —
+          // fall through and read whatever's currently in the DB; a later poll may succeed.
+        }
+    
         const fetchedOrder = await apiClient.get<Order>(`/orders/${orderId}`);
         if (cancelled) return;
         setOrder(fetchedOrder);
-
+    
         if (fetchedOrder.status === "Confirmed" || fetchedOrder.status === "Processing") {
           setOutcome("success");
           return;
@@ -52,7 +60,7 @@ export function PaymentResult({ flavor }: { flavor: PaymentFlavor }) {
           setOutcome(flavor === "cancel" ? "cancelled" : "failed");
           return;
         }
-
+    
         attemptRef.current += 1;
         if (attemptRef.current >= maxAttempts) {
           setOutcome(flavor === "success" ? "pending" : flavor === "cancel" ? "cancelled" : "failed");
