@@ -59,6 +59,12 @@ export const createVariantSchema = z.object({
   images: z.array(z.string()).optional(),
   isActive: z.boolean().optional(),
   initialStock: z.number().int().nonnegative().optional(),
+  // Used by the Shiprocket integration for shipment creation; optional since
+  // most existing variants won't have these backfilled yet.
+  weightKg: z.number().positive().optional(),
+  lengthCm: z.number().positive().optional(),
+  breadthCm: z.number().positive().optional(),
+  heightCm: z.number().positive().optional(),
 });
 
 export const updateVariantSchema = createVariantSchema.partial().omit({ initialStock: true });

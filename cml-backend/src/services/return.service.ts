@@ -7,6 +7,8 @@ import {
   markReturnedStockDamaged,
 } from './inventory.service';
 import { initiateRefundForReturn } from './refund.service';
+import { createReverseShipmentForReturn } from './shipping/shiprocket.service';
+import { logger } from '../utils/logger';
 
 // export interface RequestReturnInput {
 //   orderId: string;
@@ -112,7 +114,26 @@ async function transition(returnId: string, to: ReturnStatus): Promise<IReturn> 
 }
 
 export async function approveReturn(returnId: string): Promise<IReturn> {
-  return transition(returnId, 'Approved');
+  const returnDoc = await transition(returnId, 'Approved');
+
+  // Per the chosen return-logistics approach: use Shiprocket's own
+  // return-order API, which auto-generates the reverse-pickup AWB, rather
+  // than a manual "PickedUp" admin click. If this call fails, the return
+  // stays Approved and an admin can still fall back to the manual PickedUp
+  // action — this shouldn't block approvals on a Shiprocket outage.
+  const order = await Order.findById(returnDoc.orderId);
+  if (order) {
+    try {
+      await createReverseShipmentForReturn(returnDoc, order);
+    } catch (error) {
+      logger.error('Failed to auto-create Shiprocket reverse pickup for approved return', {
+        returnId: returnDoc._id.toString(),
+        error: error instanceof Error ? error.message : error,
+      });
+    }
+  }
+
+  return returnDoc;
 }
 
 export async function rejectReturn(returnId: string, reason: string): Promise<IReturn> {

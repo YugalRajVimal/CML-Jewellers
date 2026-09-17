@@ -6,8 +6,9 @@ import { Product } from '../models/Product.model';
 import { ProductVariant } from '../models/ProductVariant.model';
 import { AppError } from '../utils/AppError';
 import { revalidateCart, computeCartTotals, getOrCreateCart } from './cart.service';
-import { reserveStock } from './inventory.service';
+import { reserveStock, markStockSold } from './inventory.service';
 import { generateOrderNumber } from '../utils/orderNumber';
+import { getSettings } from '../models/Setting.model';
 
 export async function validateCheckout(userId: string, addressId: string) {
   const cart = await getOrCreateCart(userId);
@@ -37,8 +38,15 @@ export async function validateCheckout(userId: string, addressId: string) {
  * reserves inventory for every line (all-or-nothing), snapshots address+items,
  * then clears the cart. Payment creation/verification is wired up in EPIC 4.
  */
-export async function createOrderFromCart(userId: string, addressId: string) {
+export async function createOrderFromCart(userId: string, addressId: string, paymentMethod: 'Prepaid' | 'COD' = 'Prepaid') {
   const { cart, address, totals } = await validateCheckout(userId, addressId);
+
+  if (paymentMethod === 'COD') {
+    const settings = await getSettings();
+    if (!settings.codEnabled) {
+      throw AppError.conflict('Cash on Delivery is not available right now', 'COD_NOT_ENABLED');
+    }
+  }
 
   const orderNumber = generateOrderNumber();
   const stockLines = cart.items.map((item) => ({ variantId: item.variantId, qty: item.qty }));
@@ -75,8 +83,16 @@ export async function createOrderFromCart(userId: string, addressId: string) {
       tax: totals.tax,
       total: totals.total,
       couponCode: totals.couponCode,
-      status: 'Pending',
+      paymentMethod,
+      // COD has no payment gateway step to wait on — confirm immediately and
+      // move reserved stock straight to sold, the same way a successful
+      // Cashfree payment does for a Prepaid order.
+      status: paymentMethod === 'COD' ? 'Confirmed' : 'Pending',
     });
+
+    if (paymentMethod === 'COD') {
+      await markStockSold(stockLines, orderNumber);
+    }
 
     // Clear the cart only after the order is successfully persisted.
     cart.items = [] as unknown as ICart['items'];

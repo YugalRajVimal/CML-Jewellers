@@ -15,6 +15,15 @@ export interface IProductVariant extends Document {
   mrp: number;
   images: string[];
   isActive: boolean;
+  // Shiprocket's order-creation API requires weight + dimensions per
+  // shipment. Optional here because existing variants won't have them yet —
+  // shiprocket.service.ts falls back to a configurable default package size
+  // when any of these are missing (see DEFAULT_PACKAGE in that file), so
+  // shipment creation doesn't hard-fail for un-backfilled products.
+  weightKg?: number;
+  lengthCm?: number;
+  breadthCm?: number;
+  heightCm?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -28,6 +37,10 @@ const productVariantSchema = new Schema<IProductVariant>(
     mrp: { type: Number, required: true, min: 0 },
     images: { type: [String], default: [] },
     isActive: { type: Boolean, default: true },
+    weightKg: { type: Number, min: 0 },
+    lengthCm: { type: Number, min: 0 },
+    breadthCm: { type: Number, min: 0 },
+    heightCm: { type: Number, min: 0 },
   },
   { timestamps: true }
 );

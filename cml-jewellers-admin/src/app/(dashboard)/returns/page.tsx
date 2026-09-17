@@ -1,3 +1,178 @@
+// "use client";
+
+// import { useEffect, useState } from "react";
+// import Link from "next/link";
+// import { RotateCcw } from "lucide-react";
+// import * as api from "@/lib/api";
+// import { Return, ReturnStatus } from "@/lib/types";
+// import { RETURN_TRANSITIONS } from "@/lib/state-machines";
+// import { PageHeader, Panel, StatusPill, Button, EmptyState } from "@/components/ui";
+// import { PermissionGate } from "@/components/permission-gate";
+// import { useAuth } from "@/lib/auth";
+
+// function getReturnId(r: any) {
+//   // prefer id, fallback to _id
+//   return r.id || r._id || "";
+// }
+
+// // Orders endpoint provides orderNumber for returns, but not always, handle fallback
+// function getOrderNumber(r: any) {
+//   // The example doesn't show orderNumber, so display orderId if missing
+//   return r.orderNumber || r.orderId || "";
+// }
+
+// function getReturnItemsString(items: any[]) {
+//   // Defensive in case productName is missing (not in example)
+//   return Array.isArray(items)
+//     ? items.map((i) =>
+//         (i.productName ? `${i.productName} × ${i.qty}` : `${i.qty}`)
+//       ).join(", ")
+//     : "";
+// }
+
+// function ReturnsInner() {
+//   const { can } = useAuth();
+//   const [returns, setReturns] = useState<any[] | null>(null);
+//   const [busy, setBusy] = useState<string | null>(null);
+//   const [notice, setNotice] = useState<Record<string, string>>({});
+
+//   async function load() {
+//     const res = await api.listReturns();
+//     console.log("Returns API response:", res);
+//     // The response shape has {returns: [...]}, but sometimes it might be {data: ...}
+//     // Accept both, but safely check for .returns property existence instead of using ?.returns on a potentially never-typed object. 
+//     let returnArr: any[] = [];
+//     if (Array.isArray(res.data)) {
+//       returnArr = res.data;
+//     } else if (
+//       res.data &&
+//       typeof res.data === "object" &&
+//       "returns" in res.data &&
+//       Array.isArray((res.data as any).returns)
+//     ) {
+//       returnArr = (res.data as any).returns;
+//     }
+//     console.log("Loaded returns array:", returnArr);
+//     setReturns(returnArr);
+//   }
+
+//   useEffect(() => {
+//     load();
+//   }, []);
+
+//   async function move(id: string, to: ReturnStatus) {
+//     setBusy(id);
+//     setNotice((n) => ({ ...n, [id]: "" }));
+//     try {
+//       await api.transitionReturn(id, to);
+//       await load();
+//     } catch (e) {
+//       setNotice((n) => ({
+//         ...n,
+//         [id]: e instanceof Error ? e.message : "Could not update."
+//       }));
+//     } finally {
+//       setBusy(null);
+//     }
+//   }
+
+//   return (
+//     <div>
+//       <PageHeader
+//         eyebrow="Fulfilment"
+//         title="Returns"
+//         description="Approve, receive, inspect and refund customer returns. Refunding restores inventory in lockstep."
+//       />
+//       {!returns && (
+//         <Panel className="p-8 text-center text-sm text-ink-500">Loading…</Panel>
+//       )}
+//       {returns && returns.length === 0 && (
+//         <EmptyState
+//           icon={RotateCcw}
+//           title="No returns yet"
+//           description="Approved returns will show up here."
+//         />
+//       )}
+//       <div className="space-y-3">
+//         {returns?.map((r) => {
+//           // Fix type error for RETURN_TRANSITIONS indexing: ensure r.status is ReturnStatus
+//           const allowed = r && typeof r.status === "string" && r.status in RETURN_TRANSITIONS
+//             ? RETURN_TRANSITIONS[r.status as ReturnStatus] || []
+//             : [];
+//           return (
+//             <Panel key={getReturnId(r)} className="p-4">
+//               <div className="flex items-center justify-between">
+//                 <div>
+//                   <p className="font-medium text-ink-900">
+//                     Return for{" "}
+//                     <Link
+//                       href={`/orders/${r.orderId}`}
+//                       className="text-maroon-600 hover:underline"
+//                     >
+//                       {getOrderNumber(r)}
+//                     </Link>
+//                   </p>
+//                   <p className="text-xs text-ink-500">
+//                     {getReturnItemsString(r.items)}
+//                   </p>
+//                   <p className="text-xs text-ink-500 mt-1">
+//                     Reason: {r.reason}
+//                   </p>
+//                   {r.inspectionNotes && (
+//                     <p className="text-xs text-ink-500 mt-1">
+//                       Inspection: {r.inspectionNotes}
+//                     </p>
+//                   )}
+//                   {/* Optionally display refunded id if present */}
+//                   {r.refundId && (
+//                     <p className="text-xs text-ink-500 mt-1">
+//                       Refund Id: {r.refundId}
+//                     </p>
+//                   )}
+//                 </div>
+//                 <StatusPill status={r.status} />
+//               </div>
+//               {can("return:manage") && allowed.length > 0 && (
+//                 <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
+//                   {allowed.map((s: ReturnStatus) => (
+//                     <Button
+//                       key={s}
+//                       size="sm"
+//                       variant={
+//                         ["Rejected", "Cancelled"].includes(s)
+//                           ? "danger"
+//                           : "secondary"
+//                       }
+//                       disabled={busy === getReturnId(r)}
+//                       onClick={() => move(getReturnId(r), s)}
+//                     >
+//                       Move to {s}
+//                     </Button>
+//                   ))}
+//                 </div>
+//               )}
+//               {notice[getReturnId(r)] && (
+//                 <p className="text-xs text-bad mt-2">
+//                   {notice[getReturnId(r)]}
+//                 </p>
+//               )}
+//             </Panel>
+//           );
+//         })}
+//       </div>
+//     </div>
+//   );
+// }
+
+// export default function ReturnsPage() {
+//   return (
+//     <PermissionGate perm="return:manage">
+//       <ReturnsInner />
+//     </PermissionGate>
+//   );
+// }
+
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -61,10 +236,23 @@ function ReturnsInner() {
   }, []);
 
   async function move(id: string, to: ReturnStatus) {
+    // Reject and Inspect need extra info the backend requires — collect it
+    // before calling the API instead of sending an empty/undefined body.
+    let extra: { reason?: string; passed?: boolean; notes?: string } | undefined;
+    if (to === "Rejected") {
+      const reason = window.prompt("Reason for rejecting this return:");
+      if (reason === null) return; // cancelled
+      extra = { reason };
+    } else if (to === "Inspected") {
+      const passed = window.confirm("Did the item pass inspection?\n\nOK = Passed, Cancel = Failed");
+      const notes = window.prompt("Inspection notes (optional):") ?? undefined;
+      extra = { passed, notes };
+    }
+
     setBusy(id);
     setNotice((n) => ({ ...n, [id]: "" }));
     try {
-      await api.transitionReturn(id, to);
+      await api.transitionReturn(id, to, extra);
       await load();
     } catch (e) {
       setNotice((n) => ({

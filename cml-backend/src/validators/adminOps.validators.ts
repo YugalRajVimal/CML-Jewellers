@@ -4,6 +4,10 @@ export const updateOrderStatusSchema = z.object({
   status: z.enum(['Processing', 'Shipped', 'Delivered', 'Cancelled', 'ReturnRequested']),
 });
 
+export const assignCourierSchema = z.object({
+  courierId: z.string().min(1),
+});
+
 export const setCustomerActiveSchema = z.object({
   isActive: z.boolean(),
 });

@@ -34,6 +34,17 @@ export interface IReturn extends Document {
   inspectionNotes?: string;
   rejectionReason?: string;
   refundId?: Types.ObjectId;
+  // Populated once Approved auto-creates a Shiprocket reverse-pickup order
+  // (see shiprocket.service.ts#createReverseShipmentForReturn).
+  reverseShipment?: {
+    shiprocketOrderId?: string;
+    shiprocketShipmentId?: string;
+    awbCode?: string;
+    courierName?: string;
+    pickupScheduledAt?: Date;
+    lastTrackingStatus?: string;
+    lastTrackingSyncedAt?: Date;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,6 +55,19 @@ const returnItemSchema = new Schema<IReturnItem>(
     variantId: { type: Schema.Types.ObjectId, ref: 'ProductVariant', required: true },
     qty: { type: Number, required: true, min: 1 },
     reason: { type: String, required: true },
+  },
+  { _id: false }
+);
+
+const reverseShipmentSchema = new Schema(
+  {
+    shiprocketOrderId: { type: String },
+    shiprocketShipmentId: { type: String },
+    awbCode: { type: String },
+    courierName: { type: String },
+    pickupScheduledAt: { type: Date },
+    lastTrackingStatus: { type: String },
+    lastTrackingSyncedAt: { type: Date },
   },
   { _id: false }
 );
@@ -63,6 +87,7 @@ const returnSchema = new Schema<IReturn>(
     inspectionNotes: { type: String },
     rejectionReason: { type: String },
     refundId: { type: Schema.Types.ObjectId, ref: 'Refund' },
+    reverseShipment: { type: reverseShipmentSchema, default: undefined },
   },
   { timestamps: true }
 );

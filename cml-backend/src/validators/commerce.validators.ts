@@ -39,6 +39,11 @@ export const checkoutValidateSchema = z.object({
 
 export const createOrderSchema = z.object({
   addressId: z.string().min(1),
+  // Optional — defaults to 'Prepaid' server-side. Only honoured when the
+  // site-wide COD toggle is on (see Setting.model.ts); otherwise checkout
+  // rejects a 'COD' request with a clear error rather than silently
+  // downgrading it to Prepaid.
+  paymentMethod: z.enum(['Prepaid', 'COD']).optional(),
 });
 
 export const cancelOrderSchema = z.object({

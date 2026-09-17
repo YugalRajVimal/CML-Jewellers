@@ -20,6 +20,7 @@ import reviewRoutes from './review.routes';
 import paymentAdminRoutes from './paymentAdmin.routes';
 import salesRoutes from './sales.routes';
 import auditLogRoutes from './auditLog.routes';
+import settingsRoutes from './settings.routes';
 
 const router = Router();
 
@@ -44,6 +45,7 @@ router.use('/reviews', reviewRoutes);
 router.use('/payments', paymentAdminRoutes);
 router.use('/sales', salesRoutes);
 router.use('/audit-log', auditLogRoutes);
+router.use('/settings', settingsRoutes);
 
 router.use((req, res) => {
     res.status(404).json({ success: false, message: 'Not found', error: { code: 'NOT_FOUND' } });

@@ -9,6 +9,7 @@ import paymentRoutes from './payment.routes';
 import returnRoutes from './return.routes';
 import reviewRoutes from './review.routes';
 import adminRoutes from './admin/index';
+import webhookRoutes from './webhook.routes';
 
 const router = Router();
 
@@ -22,6 +23,7 @@ router.use('/', checkoutOrderRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/returns', returnRoutes);
 router.use('/reviews', reviewRoutes);
+router.use('/webhooks', webhookRoutes);
 
 
 export default router;
