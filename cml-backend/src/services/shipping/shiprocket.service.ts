@@ -108,7 +108,7 @@ export async function checkServiceabilityForOrder(order: IOrder) {
   const packageSize = packageSizeForOrder(variants);
 
   return shiprocket.checkServiceability({
-    pickupPincode: env.shiprocket.pickupLocation ? '' : '', // placeholder — Shiprocket resolves this from pickup_location internally on most plans
+    pickupPincode: env.shiprocket.pickupPincode, // placeholder — Shiprocket resolves this from pickup_location internally on most plans
     deliveryPincode: String(address.pincode || ''),
     weightKg: packageSize.weightKg,
     cod: order.paymentMethod === 'COD',

@@ -253,6 +253,7 @@ export const env = {
     // set this once a pickup location exists; order creation will fail
     // fast with a clear error until it's configured.
     pickupLocation: process.env.SHIPROCKET_PICKUP_LOCATION || '',
+    pickupPincode: process.env.SHIPROCKET_PICKUP_PINCODE || '',
     // Shared secret Shiprocket's webhook config is set to send back in the
     // `x-api-key` header, so we can verify inbound webhook calls actually
     // came from Shiprocket (see services/shipping/webhook.service.ts).
