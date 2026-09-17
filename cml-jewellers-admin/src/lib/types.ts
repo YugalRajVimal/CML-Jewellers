@@ -1,21 +1,283 @@
+// // // // Types mirror PART 6 — SHARED DATA MODELS and PART 7 — STATE MACHINES
+
+// // // export type Permission =
+// // //   | "product:read" | "product:write"
+// // //   | "category:write" | "category:write"
+// // //   | "inventory:read" | "inventory:write"
+// // //   | "purchase:manage" | "purchase:manage"
+// // //   | "order:read" | "order:write"
+// // //   | "order:read"
+// // //   | "order:read"
+// // //   | "return:manage" | "return:manage"
+// // //   | "refund:manage" | "refund:manage"
+// // //   | "customer:read"
+// // //   | "coupon:manage" | "coupon:manage"
+// // //   | "content:manage" | "content:manage"
+// // //   | "admin_user:manage" | "admin_user:manage"
+// // //   | "role:manage" | "role:manage"
+// // //   | "dashboard:read"
+// // //   | "dashboard:read";
+
+// // // export interface Role {
+// // //   id: string;
+// // //   name: string;
+// // //   description: string;
+// // //   permissions: Permission[];
+// // //   isSystem?: boolean;
+// // // }
+
+// // // export interface AdminUser {
+// // //   id: string;
+// // //   name: string;
+// // //   email: string;
+// // //   roleId: string;
+// // //   status: "active" | "suspended";
+// // //   lastLoginAt?: string;
+// // //   createdAt: string;
+// // // }
+
+// // // export type OrderStatus =
+// // //   | "Pending" | "Confirmed" | "Processing" | "Shipped" | "Delivered"
+// // //   | "Cancelled" | "ReturnRequested";
+
+// // // export type PaymentStatus = "Created" | "Pending" | "Success" | "Failed" | "Cancelled";
+
+// // // export type ReturnStatus =
+// // //   | "Requested" | "Approved" | "PickedUp" | "Received" | "Inspected"
+// // //   | "Refunded" | "Rejected" | "Cancelled";
+
+// // // export type RefundStatus = "Initiated" | "Processing" | "Completed" | "Failed";
+
+// // // export type InventoryTxnType = "purchase" | "sale" | "return" | "adjustment" | "damage";
+
+// // // export interface Category {
+// // //   id: string;
+// // //   name: string;
+// // //   slug: string;
+// // //   parentId?: string | null;
+// // //   productCount: number;
+// // //   isActive: boolean;
+// // // }
+
+// // // export interface ProductVariant {
+// // //   id: string;
+// // //   sku: string;
+// // //   attributes: Record<string, string>;
+// // //   price: number;
+// // //   mrp: number;
+// // //   available: number;
+// // //   reserved: number;
+// // // }
+
+// // // export interface Product {
+// // //   id: string;
+// // //   name: string;
+// // //   slug: string;
+// // //   categoryId: string;
+// // //   subcategoryId?: string | null;
+// // //   sku: string;
+// // //   basePrice: number;
+// // //   mrp: number;
+// // //   attributes: { material?: string; metal?: string; purity?: string; stone?: string; gender?: string; occasion?: string };
+// // //   images: string[];
+// // //   status: "draft" | "active" | "archived";
+// // //   isFeatured: boolean;
+// // //   ratingAvg: number;
+// // //   variants: ProductVariant[];
+// // //   createdAt: string;
+// // // }
+
+// // // export interface InventoryRow {
+// // //   id: string;
+// // //   variantId: string;
+// // //   productName: string;
+// // //   sku: string;
+// // //   available: number;
+// // //   reserved: number;
+// // //   sold: number;
+// // //   damaged: number;
+// // //   returned: number;
+// // //   lowStockThreshold: number;
+// // // }
+
+// // // export interface InventoryTransaction {
+// // //   id: string;
+// // //   inventoryId: string;
+// // //   sku: string;
+// // //   type: InventoryTxnType;
+// // //   qty: number;
+// // //   refId: string;
+// // //   createdAt: string;
+// // // }
+
+// // // export interface Supplier {
+// // //   id: string;
+// // //   name: string;
+// // //   contact: string;
+// // //   address: string;
+// // // }
+
+// // // export interface PurchaseItem {
+// // //   variantId: string;
+// // //   sku: string;
+// // //   orderedQty: number;
+// // //   receivedQty: number;
+// // //   cost: number;
+// // // }
+
+// // // export interface Purchase {
+// // //   id: string;
+// // //   supplierId: string;
+// // //   supplierName: string;
+// // //   items: PurchaseItem[];
+// // //   status: "Draft" | "Ordered" | "PartiallyReceived" | "Received" | "Cancelled";
+// // //   createdAt: string;
+// // // }
+
+// // // export interface OrderItem {
+// // //   variantId: string;
+// // //   productName: string;
+// // //   sku: string;
+// // //   qty: number;
+// // //   price: number;
+// // // }
+
+// // // export interface Order {
+// // //   id: string;
+// // //   orderNumber: string;
+// // //   userId: string;
+// // //   customerName: string;
+// // //   items: OrderItem[];
+// // //   addressLine: string;
+// // //   subtotal: number;
+// // //   discount: number;
+// // //   shipping: number;
+// // //   tax: number;
+// // //   total: number;
+// // //   status: OrderStatus;
+// // //   paymentId: string;
+// // //   paymentStatus: PaymentStatus;
+// // //   createdAt: string;
+// // // }
+
+// // // export interface Return {
+// // //   id: string;
+// // //   orderId: string;
+// // //   orderNumber: string;
+// // //   items: { productName: string; qty: number }[];
+// // //   reason: string;
+// // //   status: ReturnStatus;
+// // //   createdAt: string;
+// // // }
+
+// // // export interface Refund {
+// // //   id: string;
+// // //   paymentId: string;
+// // //   returnId: string;
+// // //   orderNumber: string;
+// // //   amount: number;
+// // //   status: RefundStatus;
+// // //   createdAt: string;
+// // // }
+
+// // // export interface Customer {
+// // //   id: string;
+// // //   name: string;
+// // //   email: string;
+// // //   phone: string;
+// // //   ordersCount: number;
+// // //   lifetimeValue: number;
+// // //   emailVerified: boolean;
+// // //   phoneVerified: boolean;
+// // //   createdAt: string;
+// // // }
+
+// // // export interface Coupon {
+// // //   id: string;
+// // //   code: string;
+// // //   type: "flat" | "percent";
+// // //   value: number;
+// // //   minCartValue: number;
+// // //   expiry: string;
+// // //   usageLimit: number;
+// // //   used: number;
+// // //   isActive: boolean;
+// // // }
+
+// // // export interface Banner {
+// // //   id: string;
+// // //   title: string;
+// // //   ctaText: string;
+// // //   ctaUrl: string;
+// // //   order: number;
+// // //   isActive: boolean;
+// // // }
+
+// // // export interface Payment {
+// // //   id: string;
+// // //   orderId: string;
+// // //   orderNumber: string;
+// // //   provider: "cashfree";
+// // //   providerRefId: string;
+// // //   amount: number;
+// // //   status: PaymentStatus;
+// // //   verifiedAt?: string;
+// // //   createdAt: string;
+// // // }
+
+// // // export interface HomepageSection {
+// // //   id: string;
+// // //   type: "hero" | "category_strip" | "promo_grid" | "testimonials" | "newsletter";
+// // //   title: string;
+// // //   order: number;
+// // //   isActive: boolean;
+// // // }
+
+// // // export interface AuditLogEntry {
+// // //   id: string;
+// // //   actor: string;
+// // //   action: string;
+// // //   entity: string;
+// // //   entityId: string;
+// // //   createdAt: string;
+// // // }
+
+
 // // // Types mirror PART 6 — SHARED DATA MODELS and PART 7 — STATE MACHINES
+
+// // // Permission keys are CONFIRMED from src/constants/permissions.ts in the real
+// // // backend — colon-style, resource-level (not the finer view/write-per-module
+// // // split originally assumed). Several resources only have ONE permission that
+// // // covers both reading and writing (e.g. return:manage covers viewing AND
+// // // approving/rejecting a return) — there is no returns.view vs returns.write.
+// // // export type Permission =
+// // //   | "dashboard:read"
+// // //   | "product:read" | "product:write"
+// // //   | "category:write"
+// // //   | "inventory:read" | "inventory:write"
+// // //   | "order:read" | "order:write"
+// // //   | "return:manage"
+// // //   | "refund:manage"
+// // //   | "purchase:manage"
+// // //   | "customer:read"
+// // //   | "coupon:manage"
+// // //   | "content:manage"
+// // //   | "admin_user:manage"
+// // //   | "role:manage";
 
 // // export type Permission =
 // //   | "product:read" | "product:write"
-// //   | "category:write" | "category:write"
+// //   | "category:write"
 // //   | "inventory:read" | "inventory:write"
-// //   | "purchase:manage" | "purchase:manage"
+// //   | "purchase:manage"
 // //   | "order:read" | "order:write"
-// //   | "order:read"
-// //   | "order:read"
-// //   | "return:manage" | "return:manage"
-// //   | "refund:manage" | "refund:manage"
+// //   | "return:manage"
+// //   | "refund:manage"
 // //   | "customer:read"
-// //   | "coupon:manage" | "coupon:manage"
-// //   | "content:manage" | "content:manage"
-// //   | "admin_user:manage" | "admin_user:manage"
-// //   | "role:manage" | "role:manage"
-// //   | "dashboard:read"
+// //   | "coupon:manage"
+// //   | "content:manage"
+// //   | "admin_user:manage"
+// //   | "role:manage"
 // //   | "dashboard:read";
 
 // // export interface Role {
@@ -73,7 +335,10 @@
 // //   id: string;
 // //   name: string;
 // //   slug: string;
+// //   description:string;
+// //   isNewArrival:boolean;
 // //   categoryId: string;
+// //   category_id:string;
 // //   subcategoryId?: string | null;
 // //   sku: string;
 // //   basePrice: number;
@@ -86,6 +351,7 @@
 // //   variants: ProductVariant[];
 // //   createdAt: string;
 // // }
+
 
 // // export interface InventoryRow {
 // //   id: string;
@@ -226,8 +492,11 @@
 // // }
 
 // // export interface HomepageSection {
+// //   // The backend keys sections by an arbitrary string (see
+// //   // adminUpsertHomepageSection: `findOneAndUpdate({ section }, ...)`), not a
+// //   // fixed enum — `id` here IS that section key, e.g. "hero", "promo_1", etc.
 // //   id: string;
-// //   type: "hero" | "category_strip" | "promo_grid" | "testimonials" | "newsletter";
+// //   type: string;
 // //   title: string;
 // //   order: number;
 // //   isActive: boolean;
@@ -241,29 +510,6 @@
 // //   entityId: string;
 // //   createdAt: string;
 // // }
-
-
-// // Types mirror PART 6 — SHARED DATA MODELS and PART 7 — STATE MACHINES
-
-// // Permission keys are CONFIRMED from src/constants/permissions.ts in the real
-// // backend — colon-style, resource-level (not the finer view/write-per-module
-// // split originally assumed). Several resources only have ONE permission that
-// // covers both reading and writing (e.g. return:manage covers viewing AND
-// // approving/rejecting a return) — there is no returns.view vs returns.write.
-// // export type Permission =
-// //   | "dashboard:read"
-// //   | "product:read" | "product:write"
-// //   | "category:write"
-// //   | "inventory:read" | "inventory:write"
-// //   | "order:read" | "order:write"
-// //   | "return:manage"
-// //   | "refund:manage"
-// //   | "purchase:manage"
-// //   | "customer:read"
-// //   | "coupon:manage"
-// //   | "content:manage"
-// //   | "admin_user:manage"
-// //   | "role:manage";
 
 // export type Permission =
 //   | "product:read" | "product:write"
@@ -279,7 +525,7 @@
 //   | "admin_user:manage"
 //   | "role:manage"
 //   | "dashboard:read";
-
+ 
 // export interface Role {
 //   id: string;
 //   name: string;
@@ -287,31 +533,35 @@
 //   permissions: Permission[];
 //   isSystem?: boolean;
 // }
-
+ 
 // export interface AdminUser {
 //   id: string;
 //   name: string;
 //   email: string;
 //   roleId: string;
-//   status: "active" | "suspended";
+//   // Backend (`AdminUser.model.ts`) stores this as a boolean, not a
+//   // "active"/"suspended" string. `status` is kept optional for any UI code
+//   // that still derives a display string from it.
+//   isActive: boolean;
+//   status?: "active" | "suspended";
 //   lastLoginAt?: string;
 //   createdAt: string;
 // }
-
+ 
 // export type OrderStatus =
 //   | "Pending" | "Confirmed" | "Processing" | "Shipped" | "Delivered"
 //   | "Cancelled" | "ReturnRequested";
-
+ 
 // export type PaymentStatus = "Created" | "Pending" | "Success" | "Failed" | "Cancelled";
-
+ 
 // export type ReturnStatus =
 //   | "Requested" | "Approved" | "PickedUp" | "Received" | "Inspected"
 //   | "Refunded" | "Rejected" | "Cancelled";
-
+ 
 // export type RefundStatus = "Initiated" | "Processing" | "Completed" | "Failed";
-
+ 
 // export type InventoryTxnType = "purchase" | "sale" | "return" | "adjustment" | "damage";
-
+ 
 // export interface Category {
 //   id: string;
 //   name: string;
@@ -320,7 +570,7 @@
 //   productCount: number;
 //   isActive: boolean;
 // }
-
+ 
 // export interface ProductVariant {
 //   id: string;
 //   sku: string;
@@ -330,7 +580,7 @@
 //   available: number;
 //   reserved: number;
 // }
-
+ 
 // export interface Product {
 //   id: string;
 //   name: string;
@@ -351,8 +601,8 @@
 //   variants: ProductVariant[];
 //   createdAt: string;
 // }
-
-
+ 
+ 
 // export interface InventoryRow {
 //   id: string;
 //   variantId: string;
@@ -365,7 +615,7 @@
 //   returned: number;
 //   lowStockThreshold: number;
 // }
-
+ 
 // export interface InventoryTransaction {
 //   id: string;
 //   inventoryId: string;
@@ -375,14 +625,14 @@
 //   refId: string;
 //   createdAt: string;
 // }
-
+ 
 // export interface Supplier {
 //   id: string;
 //   name: string;
 //   contact: string;
 //   address: string;
 // }
-
+ 
 // export interface PurchaseItem {
 //   variantId: string;
 //   sku: string;
@@ -390,7 +640,7 @@
 //   receivedQty: number;
 //   cost: number;
 // }
-
+ 
 // export interface Purchase {
 //   id: string;
 //   supplierId: string;
@@ -399,7 +649,7 @@
 //   status: "Draft" | "Ordered" | "PartiallyReceived" | "Received" | "Cancelled";
 //   createdAt: string;
 // }
-
+ 
 // export interface OrderItem {
 //   variantId: string;
 //   productName: string;
@@ -407,7 +657,7 @@
 //   qty: number;
 //   price: number;
 // }
-
+ 
 // export interface Order {
 //   id: string;
 //   orderNumber: string;
@@ -425,7 +675,7 @@
 //   paymentStatus: PaymentStatus;
 //   createdAt: string;
 // }
-
+ 
 // export interface Return {
 //   id: string;
 //   orderId: string;
@@ -435,7 +685,7 @@
 //   status: ReturnStatus;
 //   createdAt: string;
 // }
-
+ 
 // export interface Refund {
 //   id: string;
 //   paymentId: string;
@@ -445,7 +695,7 @@
 //   status: RefundStatus;
 //   createdAt: string;
 // }
-
+ 
 // export interface Customer {
 //   id: string;
 //   name: string;
@@ -457,7 +707,7 @@
 //   phoneVerified: boolean;
 //   createdAt: string;
 // }
-
+ 
 // export interface Coupon {
 //   id: string;
 //   code: string;
@@ -469,7 +719,7 @@
 //   used: number;
 //   isActive: boolean;
 // }
-
+ 
 // export interface Banner {
 //   id: string;
 //   title: string;
@@ -478,7 +728,7 @@
 //   order: number;
 //   isActive: boolean;
 // }
-
+ 
 // export interface Payment {
 //   id: string;
 //   orderId: string;
@@ -490,7 +740,7 @@
 //   verifiedAt?: string;
 //   createdAt: string;
 // }
-
+ 
 // export interface HomepageSection {
 //   // The backend keys sections by an arbitrary string (see
 //   // adminUpsertHomepageSection: `findOneAndUpdate({ section }, ...)`), not a
@@ -501,7 +751,7 @@
 //   order: number;
 //   isActive: boolean;
 // }
-
+ 
 // export interface AuditLogEntry {
 //   id: string;
 //   actor: string;
@@ -510,6 +760,12 @@
 //   entityId: string;
 //   createdAt: string;
 // }
+
+
+
+
+
+
 
 export type Permission =
   | "product:read" | "product:write"
@@ -525,7 +781,7 @@ export type Permission =
   | "admin_user:manage"
   | "role:manage"
   | "dashboard:read";
- 
+
 export interface Role {
   id: string;
   name: string;
@@ -533,7 +789,7 @@ export interface Role {
   permissions: Permission[];
   isSystem?: boolean;
 }
- 
+
 export interface AdminUser {
   id: string;
   name: string;
@@ -547,21 +803,21 @@ export interface AdminUser {
   lastLoginAt?: string;
   createdAt: string;
 }
- 
+
 export type OrderStatus =
   | "Pending" | "Confirmed" | "Processing" | "Shipped" | "Delivered"
   | "Cancelled" | "ReturnRequested";
- 
+
 export type PaymentStatus = "Created" | "Pending" | "Success" | "Failed" | "Cancelled";
- 
+
 export type ReturnStatus =
   | "Requested" | "Approved" | "PickedUp" | "Received" | "Inspected"
   | "Refunded" | "Rejected" | "Cancelled";
- 
+
 export type RefundStatus = "Initiated" | "Processing" | "Completed" | "Failed";
- 
+
 export type InventoryTxnType = "purchase" | "sale" | "return" | "adjustment" | "damage";
- 
+
 export interface Category {
   id: string;
   name: string;
@@ -570,7 +826,7 @@ export interface Category {
   productCount: number;
   isActive: boolean;
 }
- 
+
 export interface ProductVariant {
   id: string;
   sku: string;
@@ -580,7 +836,7 @@ export interface ProductVariant {
   available: number;
   reserved: number;
 }
- 
+
 export interface Product {
   id: string;
   name: string;
@@ -601,8 +857,8 @@ export interface Product {
   variants: ProductVariant[];
   createdAt: string;
 }
- 
- 
+
+
 export interface InventoryRow {
   id: string;
   variantId: string;
@@ -615,7 +871,7 @@ export interface InventoryRow {
   returned: number;
   lowStockThreshold: number;
 }
- 
+
 export interface InventoryTransaction {
   id: string;
   inventoryId: string;
@@ -625,14 +881,14 @@ export interface InventoryTransaction {
   refId: string;
   createdAt: string;
 }
- 
+
 export interface Supplier {
   id: string;
   name: string;
   contact: string;
   address: string;
 }
- 
+
 export interface PurchaseItem {
   variantId: string;
   sku: string;
@@ -640,7 +896,7 @@ export interface PurchaseItem {
   receivedQty: number;
   cost: number;
 }
- 
+
 export interface Purchase {
   id: string;
   supplierId: string;
@@ -649,7 +905,7 @@ export interface Purchase {
   status: "Draft" | "Ordered" | "PartiallyReceived" | "Received" | "Cancelled";
   createdAt: string;
 }
- 
+
 export interface OrderItem {
   variantId: string;
   productName: string;
@@ -657,7 +913,7 @@ export interface OrderItem {
   qty: number;
   price: number;
 }
- 
+
 export interface Order {
   id: string;
   orderNumber: string;
@@ -675,7 +931,7 @@ export interface Order {
   paymentStatus: PaymentStatus;
   createdAt: string;
 }
- 
+
 export interface Return {
   id: string;
   orderId: string;
@@ -685,7 +941,7 @@ export interface Return {
   status: ReturnStatus;
   createdAt: string;
 }
- 
+
 export interface Refund {
   id: string;
   paymentId: string;
@@ -695,7 +951,7 @@ export interface Refund {
   status: RefundStatus;
   createdAt: string;
 }
- 
+
 export interface Customer {
   id: string;
   name: string;
@@ -707,7 +963,7 @@ export interface Customer {
   phoneVerified: boolean;
   createdAt: string;
 }
- 
+
 export interface Coupon {
   id: string;
   code: string;
@@ -719,7 +975,7 @@ export interface Coupon {
   used: number;
   isActive: boolean;
 }
- 
+
 export interface Banner {
   id: string;
   title: string;
@@ -728,7 +984,7 @@ export interface Banner {
   order: number;
   isActive: boolean;
 }
- 
+
 export interface Payment {
   id: string;
   orderId: string;
@@ -740,7 +996,7 @@ export interface Payment {
   verifiedAt?: string;
   createdAt: string;
 }
- 
+
 export interface HomepageSection {
   // The backend keys sections by an arbitrary string (see
   // adminUpsertHomepageSection: `findOneAndUpdate({ section }, ...)`), not a
@@ -751,7 +1007,7 @@ export interface HomepageSection {
   order: number;
   isActive: boolean;
 }
- 
+
 export interface AuditLogEntry {
   id: string;
   actor: string;
@@ -760,8 +1016,3 @@ export interface AuditLogEntry {
   entityId: string;
   createdAt: string;
 }
-
-
-
-
-

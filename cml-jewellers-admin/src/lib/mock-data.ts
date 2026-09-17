@@ -320,10 +320,10 @@ export const ROLES: Role[] = [
 ];
 
 export const ADMIN_USERS: AdminUser[] = [
-  { id: "au_1", name: "Meera Kapoor", email: "meera@cmljewellers.com", roleId: "role_super", status: "active", lastLoginAt: "2026-09-07T06:12:00Z", createdAt: "2025-01-10T00:00:00Z" },
-  { id: "au_2", name: "Rohan Iyer", email: "rohan@cmljewellers.com", roleId: "role_catalog", status: "active", lastLoginAt: "2026-09-06T15:40:00Z", createdAt: "2025-03-02T00:00:00Z" },
-  { id: "au_3", name: "Priya Nair", email: "priya@cmljewellers.com", roleId: "role_ops", status: "active", lastLoginAt: "2026-09-07T04:02:00Z", createdAt: "2025-04-18T00:00:00Z" },
-  { id: "au_4", name: "Dev Malhotra", email: "dev@cmljewellers.com", roleId: "role_support", status: "suspended", lastLoginAt: "2026-08-11T09:00:00Z", createdAt: "2025-06-30T00:00:00Z" },
+  { id: "au_1", name: "Meera Kapoor", email: "meera@cmljewellers.com", roleId: "role_super", status: "active", lastLoginAt: "2026-09-07T06:12:00Z", createdAt: "2025-01-10T00:00:00Z", isActive: true },
+  { id: "au_2", name: "Rohan Iyer", email: "rohan@cmljewellers.com", roleId: "role_catalog", status: "active", lastLoginAt: "2026-09-06T15:40:00Z", createdAt: "2025-03-02T00:00:00Z", isActive: true },
+  { id: "au_3", name: "Priya Nair", email: "priya@cmljewellers.com", roleId: "role_ops", status: "active", lastLoginAt: "2026-09-07T04:02:00Z", createdAt: "2025-04-18T00:00:00Z", isActive: true },
+  { id: "au_4", name: "Dev Malhotra", email: "dev@cmljewellers.com", roleId: "role_support", status: "suspended", lastLoginAt: "2026-08-11T09:00:00Z", createdAt: "2025-06-30T00:00:00Z", isActive: false },
 ];
 
 export const CATEGORIES: Category[] = [
