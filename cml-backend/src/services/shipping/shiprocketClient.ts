@@ -161,6 +161,7 @@ function normalizePhone(phone: string): string {
   if (value.length === 11 && value.startsWith("0")) {
     value = value.substring(1);
   }
+  console.log("Normalized phone number:", value);
   return value;
 }
 
@@ -174,6 +175,7 @@ export async function createShiprocketOrder(input: CreateShiprocketOrderInput): 
 
   return withAuthRetry(async (http) => {
     try {
+      const billingPhoneNormalized = normalizePhone(input.billingPhone);
       const response = await http.post('/orders/create/adhoc', {
         order_id: input.orderNumber,
         order_date: input.orderDate,
@@ -186,7 +188,7 @@ export async function createShiprocketOrder(input: CreateShiprocketOrderInput): 
         billing_state: input.billingState,
         billing_country: input.billingCountry,
         billing_email: input.billingEmail,
-        billing_phone: normalizePhone(input.billingPhone),
+        billing_phone: billingPhoneNormalized,
         shipping_is_billing: true,
         order_items: input.items.map((i) => ({
           name: i.name,
@@ -222,6 +224,7 @@ export async function checkServiceability(params: {
 }): Promise<ServiceableCourier[]> {
   return withAuthRetry(async (http) => {
     try {
+      console.log('Checking serviceability with params:', params);
       const response = await http.get('/courier/serviceability/', {
         params: {
           pickup_postcode: params.pickupPincode,
@@ -230,6 +233,7 @@ export async function checkServiceability(params: {
           cod: params.cod ? 1 : 0,
         },
       });
+      console.log('Shiprocket serviceability response:', response.data);
 
       const couriers = response.data?.data?.available_courier_companies ?? [];
       return couriers.map((c: Record<string, unknown>) => ({
@@ -240,6 +244,7 @@ export async function checkServiceability(params: {
         codAvailable: Boolean(c.cod ?? c.is_surface ?? false),
       }));
     } catch (error) {
+      console.log('Error checking Shiprocket serviceability:', error);
       return handleError(error, 'Failed to check Shiprocket serviceability', 'SHIPROCKET_SERVICEABILITY_FAILED');
     }
   });
