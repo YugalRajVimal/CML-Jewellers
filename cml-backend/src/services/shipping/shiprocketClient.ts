@@ -150,6 +150,20 @@ export interface TrackingResult {
 // ---------------------------------------------------------------------------
 
 /** Creates a Shiprocket order for a forward shipment (adhoc — no separate cart step). */
+function normalizePhone(phone: string): string {
+  if (!phone) return "";
+  let value = String(phone).replace(/\D/g, "");
+  // +91XXXXXXXXXX or 91XXXXXXXXXX
+  if (value.length === 12 && value.startsWith("91")) {
+    value = value.substring(2);
+  }
+  // 0XXXXXXXXXX
+  if (value.length === 11 && value.startsWith("0")) {
+    value = value.substring(1);
+  }
+  return value;
+}
+
 export async function createShiprocketOrder(input: CreateShiprocketOrderInput): Promise<CreateShiprocketOrderResult> {
   if (!env.shiprocket.pickupLocation && !input.pickupLocation) {
     throw AppError.badRequest(
@@ -172,7 +186,7 @@ export async function createShiprocketOrder(input: CreateShiprocketOrderInput): 
         billing_state: input.billingState,
         billing_country: input.billingCountry,
         billing_email: input.billingEmail,
-        billing_phone: input.billingPhone,
+        billing_phone: normalizePhone(input.billingPhone),
         shipping_is_billing: true,
         order_items: input.items.map((i) => ({
           name: i.name,
