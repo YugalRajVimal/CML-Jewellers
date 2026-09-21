@@ -216,7 +216,7 @@ function PaymentsInner() {
 
 export default function PaymentsPage() {
   return (
-    <PermissionGate perm="order:read">
+    <PermissionGate perm="payment:read">
       <PaymentsInner />
     </PermissionGate>
   );

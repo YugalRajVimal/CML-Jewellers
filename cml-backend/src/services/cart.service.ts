@@ -5,12 +5,15 @@ import { ProductVariant } from '../models/ProductVariant.model';
 import { Inventory } from '../models/Inventory.model';
 import { AppError } from '../utils/AppError';
 import { validateAndComputeDiscount } from './coupon.service';
-import { computeShipping, computeTax } from './pricing.service';
+import { computeShipping, computeTax, roundMoney } from './pricing.service';
 
 export interface CartLineIssue {
   variantId: string;
   reason: 'OUT_OF_STOCK' | 'INSUFFICIENT_STOCK' | 'PRODUCT_UNAVAILABLE' | 'PRICE_CHANGED';
   message: string;
+  /** Only for PRICE_CHANGED: the unit price the shopper saw before this revalidation, and the live price now. */
+  previousPrice?: number;
+  currentPrice?: number;
 }
 
 export interface CartTotals {
@@ -33,7 +36,9 @@ export async function getOrCreateCart(userId: string): Promise<ICart> {
 /**
  * Re-validates every cart line against current Product/Variant/Inventory state:
  * drops items for deleted/inactive products, refreshes price snapshots on change,
- * and reports (without silently removing) items whose stock is insufficient.
+ * and reports (without silently removing) items that are out of stock or whose stock
+ * is insufficient. Out-of-stock lines stay in the cart (flagged with stock 0 by the
+ * cart serializer) so the shopper can see and remove them — only checkout is blocked.
  * Called on every cart mutation and again at checkout validation.
  */
 export async function revalidateCart(cart: ICart): Promise<{ issues: CartLineIssue[] }> {
@@ -57,15 +62,13 @@ export async function revalidateCart(cart: ICart): Promise<{ issues: CartLineIss
     const available = inventory?.available ?? 0;
 
     if (available <= 0) {
+      // Keep the line (do NOT drop it) — checkout blocks on OUT_OF_STOCK until the shopper removes it.
       issues.push({
         variantId: item.variantId.toString(),
         reason: 'OUT_OF_STOCK',
-        message: `${product.name} is currently out of stock`,
+        message: `${product.name} is currently out of stock — remove it to continue to checkout`,
       });
-      continue;
-    }
-
-    if (available < item.qty) {
+    } else if (available < item.qty) {
       item.qty = available;
       issues.push({
         variantId: item.variantId.toString(),
@@ -79,6 +82,8 @@ export async function revalidateCart(cart: ICart): Promise<{ issues: CartLineIss
         variantId: item.variantId.toString(),
         reason: 'PRICE_CHANGED',
         message: `Price for ${product.name} has changed`,
+        previousPrice: item.priceSnapshot,
+        currentPrice: variant.price,
       });
       item.priceSnapshot = variant.price;
     }
@@ -157,14 +162,14 @@ export function computeSubtotal(cart: ICart): number {
 }
 
 export async function computeCartTotals(cart: ICart): Promise<CartTotals> {
-  const subtotal = computeSubtotal(cart);
+  const subtotal = roundMoney(computeSubtotal(cart));
   let discount = 0;
   let couponCode: string | undefined;
 
   if (cart.couponCode) {
     try {
       const result = await validateAndComputeDiscount(cart.couponCode, cart.userId, subtotal);
-      discount = result.discount;
+      discount = roundMoney(result.discount);
       couponCode = result.code;
     } catch {
       // Coupon became invalid (expired/limit reached) since it was applied — drop it silently from totals.
@@ -173,9 +178,10 @@ export async function computeCartTotals(cart: ICart): Promise<CartTotals> {
     }
   }
 
-  const shipping = computeShipping(subtotal - discount);
-  const tax = computeTax(subtotal - discount);
-  const total = Math.max(0, subtotal - discount) + shipping + tax;
+  const net = roundMoney(subtotal - discount);
+  const shipping = computeShipping(net);
+  const tax = computeTax(net);
+  const total = roundMoney(Math.max(0, net) + shipping + tax);
 
   return { subtotal, discount, shipping, tax, total, couponCode };
 }

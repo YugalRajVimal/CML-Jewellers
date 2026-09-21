@@ -43,7 +43,17 @@ const purchaseSchema = new Schema<IPurchase>(
     },
     notes: { type: String },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    // BUG-04: receivePurchase() mutates items[].receivedQty and re-saves the
+    // document. Without optimistic concurrency, two concurrent "receive"
+    // requests against the same PO can both read the same receivedQty,
+    // both pass their remaining-quantity check, and both save — silently
+    // over-crediting inventory. With this on, the second save() in a race
+    // fails with a VersionError instead of clobbering the first, and the
+    // service layer turns that into a "please retry" conflict.
+    optimisticConcurrency: true,
+  }
 );
 
 export const Purchase = model<IPurchase>('Purchase', purchaseSchema);

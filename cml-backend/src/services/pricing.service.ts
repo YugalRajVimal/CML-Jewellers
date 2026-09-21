@@ -3,6 +3,12 @@
  * stubs"). Replace with real courier-rate and GST-slab logic when available —
  * call sites (checkout.service, cart totals) don't need to change.
  */
+
+/** Rounds a rupee amount to 2 decimals so float noise (1234.5600000002) never reaches the API/UI/orders. */
+export function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 export function computeShipping(subtotal: number): number {
   const FREE_SHIPPING_THRESHOLD = 5000;
   const FLAT_SHIPPING_FEE = 99;

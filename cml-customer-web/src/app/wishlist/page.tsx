@@ -7,6 +7,7 @@ import { Heart, ShoppingBag, Trash2 } from "lucide-react";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { useAsync } from "@/lib/use-async";
 import type { WishlistItem } from "@/lib/types";
+import { formatINR } from "@/lib/format";
 
 export default function WishlistPage() {
   const state = useAsync(
@@ -28,11 +29,11 @@ export default function WishlistPage() {
 
       {state.status === "error" && (
         <p className="mt-8 text-sm text-[var(--color-stone)]">
-          {state.message.toLowerCase().includes("unauthor") || state.message.toLowerCase().includes("token") ? (
+          {state.httpStatus === 401 ? (
             <>
-              Your session has expired.{" "}
+              Please{" "}
               <Link href="/login?next=/wishlist" className="text-[var(--color-gold)] underline">
-                Log in
+                log in
               </Link>{" "}
               to see your wishlist.
             </>
@@ -116,7 +117,7 @@ function WishlistGrid({ items: initialItems }: { items: WishlistItem[] }) {
                 <Link href={`/product/${item.product.slug}`} className="font-display text-base text-[var(--color-ink)]">
                   {item.product.name}
                 </Link>
-                <p className="mt-1 text-sm text-[var(--color-ink)]">₹{item.product.price}</p>
+                <p className="mt-1 text-sm text-[var(--color-ink)]">{formatINR(item.product.price)}</p>
               </div>
               <button
                 onClick={() => handleRemove(item)}

@@ -1,4 +1,4 @@
-const STEPS = ["Address", "Shipping", "Review"] as const;
+const STEPS = ["Address", "Review"] as const;
 
 export function CheckoutStepper({ activeIndex }: { activeIndex: number }) {
   return (

@@ -31,6 +31,25 @@ export const adminUpsertHomepageSection = asyncHandler(async (req: Request, res:
   sendSuccess(res, { message: 'Homepage section saved', data: { section: doc } });
 });
 
+// Partial update of an existing section (e.g. flipping isActive from the admin
+// list) without having to re-send title/data/order and without ever creating a
+// new section by accident — unlike the PUT upsert above (BUG-03).
+export const adminUpdateHomepageSection = asyncHandler(async (req: Request, res: Response) => {
+  const { section } = req.params;
+  const { title, data, order, isActive } = req.body;
+
+  const update: Record<string, unknown> = {};
+  if (title !== undefined) update.title = title;
+  if (data !== undefined) update.data = data;
+  if (order !== undefined) update.order = order;
+  if (isActive !== undefined) update.isActive = isActive;
+
+  const doc = await HomepageContent.findOneAndUpdate({ section }, { $set: update }, { new: true, runValidators: true });
+  if (!doc) throw AppError.notFound('Homepage section not found');
+
+  sendSuccess(res, { message: 'Homepage section updated', data: { section: doc } });
+});
+
 export const adminDeleteHomepageSection = asyncHandler(async (req: Request, res: Response) => {
   const { section } = req.params;
   const doc = await HomepageContent.findOneAndDelete({ section });

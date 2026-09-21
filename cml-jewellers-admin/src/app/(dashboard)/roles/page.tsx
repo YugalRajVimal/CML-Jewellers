@@ -3,21 +3,39 @@
 import { useEffect, useState } from "react";
 import { Pencil, ShieldCheck, UserPlus, UserX } from "lucide-react";
 import * as api from "@/lib/api";
-import { AdminUser, Permission, Role } from "@/lib/types";
+import { Permission } from "@/lib/types";
 import { PageHeader, Panel, StatusPill, Button, Select } from "@/components/ui";
 import { Drawer, Field, TextInput, TextArea } from "@/components/drawer";
 import { PermissionGate } from "@/components/permission-gate";
 import { useAuth } from "@/lib/auth";
 
+// Labels/grouping for the permission checkboxes. The list of permissions that can
+// actually be granted comes from the backend (GET /admin/roles/permissions);
+// anything it returns that isn't listed here falls into an "Other" group, so a
+// newly added backend permission is never un-assignable (BUG-05).
 const PERMISSION_GROUPS: { label: string; perms: Permission[] }[] = [
   { label: "Dashboard", perms: ["dashboard:read"] },
-  { label: "Catalog", perms: ["product:read", "product:write", "category:write", "category:write", "inventory:read", "inventory:write"] },
-  { label: "Fulfilment", perms: ["purchase:manage", "purchase:manage", "order:read", "order:write", "order:read", "order:read"] },
-  { label: "Returns & refunds", perms: ["return:manage", "return:manage", "refund:manage", "refund:manage"] },
-  { label: "Customers", perms: ["customer:read", "coupon:manage", "coupon:manage"] },
-  { label: "Storefront", perms: ["content:manage", "content:manage"] },
-  { label: "System", perms: ["admin_user:manage", "admin_user:manage", "role:manage", "role:manage", "dashboard:read"] },
+  { label: "Catalog", perms: ["product:read", "product:write", "category:write", "inventory:read", "inventory:write"] },
+  { label: "Fulfilment", perms: ["purchase:manage", "order:read", "order:write"] },
+  { label: "Returns & refunds", perms: ["return:manage", "refund:manage"] },
+  { label: "Payments & reports", perms: ["payment:read", "sales:read"] },
+  { label: "Customers", perms: ["customer:read", "coupon:manage"] },
+  { label: "Storefront", perms: ["content:manage"] },
+  { label: "System", perms: ["admin_user:manage", "role:manage", "audit:read"] },
 ];
+
+function buildPermissionGroups(available: string[]): { label: string; perms: Permission[] }[] {
+  const known = new Set<string>();
+  PERMISSION_GROUPS.forEach((g) => g.perms.forEach((p) => known.add(p)));
+
+  const groups = PERMISSION_GROUPS
+    .map((g) => ({ label: g.label, perms: g.perms.filter((p) => available.includes(p)) }))
+    .filter((g) => g.perms.length > 0);
+
+  const other = available.filter((p) => !known.has(p)) as Permission[];
+  if (other.length > 0) groups.push({ label: "Other", perms: other });
+  return groups;
+}
 
 function getUserId(u: any): string {
   return u._id || u.id;
@@ -30,14 +48,14 @@ function getRoleName(r: any): string {
   return r.name || "";
 }
 function getRolePermissions(r: any): Permission[] {
-  if (!r) return [];
-  if (Array.isArray(r.permissions) && typeof r.permissions[0] === "string") {
-    return r.permissions;
-  }
-  if (Array.isArray(r.permissions) && r.permissions[0]?.name) {
-    return r.permissions.map((p: any) => p.name);
-  }
-  return [];
+  if (!r || !Array.isArray(r.permissions)) return [];
+  // The backend populates role.permissions as [{ _id, key }] (see
+  // adminListRoles: populate('permissions', 'key')) — not strings and not a
+  // `name` field. Reading `.name` made every role look empty and made "edit"
+  // start from nothing, wiping the role's permissions on save (BUG-05).
+  return r.permissions
+    .map((p: any) => (typeof p === "string" ? p : p?.key))
+    .filter((p: unknown): p is Permission => typeof p === "string");
 }
 function getRoleDescription(r: any): string {
   if (!r) return "";
@@ -54,7 +72,7 @@ function RolesInner() {
   const [roles, setRoles] = useState<any[]>([]);
 
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteForm, setInviteForm] = useState({ name: "", email: "", roleId: "" });
+  const [inviteForm, setInviteForm] = useState({ name: "", email: "", password: "", roleId: "" });
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviting, setInviting] = useState(false);
 
@@ -64,26 +82,38 @@ function RolesInner() {
   const [roleError, setRoleError] = useState<string | null>(null);
   const [savingRole, setSavingRole] = useState(false);
 
+  // Permissions that can be granted. Starts from the built-in list and is replaced
+  // with the backend's canonical list once loaded.
+  const [availablePermissions, setAvailablePermissions] = useState<string[]>(() => api.allPermissions());
+  // Surfaces load / status-toggle failures, which previously failed silently.
+  const [pageError, setPageError] = useState<string | null>(null);
+
   async function load() {
-    const [uRes, rRes] = await Promise.all([api.listAdminUsers(), api.listRoles()]);
+    try {
+      const [uRes, rRes, permKeys] = await Promise.all([
+        api.listAdminUsers(),
+        api.listRoles(),
+        api.listPermissions().catch(() => api.allPermissions()),
+      ]);
 
-    // Use .data only when it's not an array; otherwise, treat the response directly as an array.
-    const admins = Array.isArray(uRes.data)
-      ? uRes.data
-      : Array.isArray((uRes.data as any)?.admins)
-      ? (uRes.data as any).admins
-      : [];
-    const roleList = Array.isArray(rRes.data)
-      ? rRes.data
-      : Array.isArray((rRes.data as any)?.roles)
-      ? (rRes.data as any).roles
-      : [];
+      // Use .data only when it's not an array; otherwise, treat the response directly as an array.
+      const admins = Array.isArray(uRes.data)
+        ? uRes.data
+        : Array.isArray((uRes.data as any)?.admins)
+        ? (uRes.data as any).admins
+        : [];
+      const roleList = Array.isArray(rRes.data)
+        ? rRes.data
+        : Array.isArray((rRes.data as any)?.roles)
+        ? (rRes.data as any).roles
+        : [];
 
-    console.log("Admin Users loaded:", uRes.data);
-    console.log("Roles loaded:", rRes.data);
-
-    setUsers(admins);
-    setRoles(roleList);
+      setUsers(admins);
+      setRoles(roleList);
+      setAvailablePermissions(permKeys);
+    } catch (e) {
+      setPageError(e instanceof Error ? e.message : "Could not load admin users and roles.");
+    }
   }
 
   useEffect(() => { load(); }, []);
@@ -95,22 +125,33 @@ function RolesInner() {
       setInviteError("Name, email and role are required.");
       return;
     }
+    // The backend requires an initial password of at least 8 characters.
+    if (inviteForm.password.length < 8) {
+      setInviteError("Password must be at least 8 characters.");
+      return;
+    }
     setInviting(true);
     try {
       await api.inviteAdminUser(inviteForm);
       setInviteOpen(false);
-      setInviteForm({ name: "", email: "", roleId: "" });
+      setInviteForm({ name: "", email: "", password: "", roleId: "" });
       await load();
     } catch (e) {
-      setInviteError(e instanceof Error ? e.message : "Could not send invite.");
+      setInviteError(e instanceof Error ? e.message : "Could not create admin.");
     } finally {
       setInviting(false);
     }
   }
 
   async function toggleUserStatus(id: string) {
-    await api.toggleAdminUserStatus(id);
-    await load();
+    setPageError(null);
+    try {
+      await api.toggleAdminUserStatus(id);
+      await load();
+    } catch (e) {
+      // e.g. the backend refuses to deactivate your own account or the last Super Admin.
+      setPageError(e instanceof Error ? e.message : "Could not update admin status.");
+    }
   }
 
   function openCreateRole() {
@@ -170,6 +211,8 @@ function RolesInner() {
         description="Manage who can access the console and what each role can do."
         actions={can("admin_user:manage") && <Button variant="primary" onClick={() => setInviteOpen(true)}><UserPlus size={15} /> Invite admin</Button>}
       />
+
+      {pageError && <p className="mb-3 text-sm text-bad">{pageError}</p>}
 
       <div className="grid lg:grid-cols-3 gap-4">
         <Panel className="lg:col-span-2 p-0 overflow-hidden">
@@ -243,10 +286,13 @@ function RolesInner() {
         </Panel>
       </div>
 
-      <Drawer open={inviteOpen} onClose={() => setInviteOpen(false)} title="Invite admin" description="Sends an invite email with a set-password link (simulated here).">
+      <Drawer open={inviteOpen} onClose={() => setInviteOpen(false)} title="Invite admin" description="Creates the admin account with the initial password you set. No invite email is sent, so share the password securely.">
         <form onSubmit={submitInvite}>
           <Field label="Full name"><TextInput value={inviteForm.name} onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })} placeholder="e.g. Ananya Sharma" /></Field>
           <Field label="Email"><TextInput type="email" value={inviteForm.email} onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })} placeholder="name@cmljewellers.com" /></Field>
+          <Field label="Initial password" hint="At least 8 characters.">
+            <TextInput type="password" autoComplete="new-password" value={inviteForm.password} onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })} />
+          </Field>
           <Field label="Role">
             <Select value={inviteForm.roleId} onChange={(e) => setInviteForm({ ...inviteForm, roleId: e.target.value })} className="w-full">
               <option value="">Select a role…</option>
@@ -260,7 +306,7 @@ function RolesInner() {
           {inviteError && <p className="text-sm text-bad mb-3">{inviteError}</p>}
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setInviteOpen(false)}>Cancel</Button>
-            <Button type="submit" variant="primary" disabled={inviting}>{inviting ? "Sending…" : "Send invite"}</Button>
+            <Button type="submit" variant="primary" disabled={inviting}>{inviting ? "Creating…" : "Create admin"}</Button>
           </div>
         </form>
       </Drawer>
@@ -280,7 +326,7 @@ function RolesInner() {
           )}
           <p className="text-xs font-medium text-ink-700 mb-2">Permissions</p>
           <div className="space-y-3 mb-4">
-            {PERMISSION_GROUPS.map((group) => (
+            {buildPermissionGroups(availablePermissions).map((group) => (
               <div key={group.label} className="rounded-lg border border-line p-3">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-ink-400 mb-2">{group.label}</p>
                 <div className="space-y-1.5">

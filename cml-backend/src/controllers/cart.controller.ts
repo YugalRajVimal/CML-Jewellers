@@ -1,56 +1,3 @@
-// import { Request, Response } from 'express';
-// import { asyncHandler } from '../utils/asyncHandler';
-// import { sendSuccess } from '../utils/apiResponse';
-// import * as cartService from '../services/cart.service';
-
-// async function buildCartResponse(userId: string) {
-//   const cart = await cartService.getOrCreateCart(userId);
-//   const { issues } = await cartService.revalidateCart(cart);
-//   const totals = await cartService.computeCartTotals(cart);
-//   return { cart, issues, totals };
-// }
-
-// export const getCart = asyncHandler(async (req: Request, res: Response) => {
-//   const { cart, issues, totals } = await buildCartResponse(req.user!.sub);
-//   sendSuccess(res, { data: { cart, issues, totals } });
-// });
-
-// export const addItem = asyncHandler(async (req: Request, res: Response) => {
-//   const { variantId, qty } = req.body;
-//   await cartService.addItemToCart(req.user!.sub, variantId, qty);
-//   const { cart, issues, totals } = await buildCartResponse(req.user!.sub);
-//   sendSuccess(res, { message: 'Item added to cart', data: { cart, issues, totals }, statusCode: 201 });
-// });
-
-// export const updateItem = asyncHandler(async (req: Request, res: Response) => {
-//   const { id } = req.params;
-//   const { qty } = req.body;
-//   await cartService.updateCartItemQty(req.user!.sub, id, qty);
-//   const { cart, issues, totals } = await buildCartResponse(req.user!.sub);
-//   sendSuccess(res, { message: 'Cart updated', data: { cart, issues, totals } });
-// });
-
-// export const removeItem = asyncHandler(async (req: Request, res: Response) => {
-//   const { id } = req.params;
-//   await cartService.removeCartItem(req.user!.sub, id);
-//   const { cart, issues, totals } = await buildCartResponse(req.user!.sub);
-//   sendSuccess(res, { message: 'Item removed from cart', data: { cart, issues, totals } });
-// });
-
-// export const applyCoupon = asyncHandler(async (req: Request, res: Response) => {
-//   const { code } = req.body;
-//   await cartService.applyCoupon(req.user!.sub, code);
-//   const { cart, issues, totals } = await buildCartResponse(req.user!.sub);
-//   sendSuccess(res, { message: 'Coupon applied', data: { cart, issues, totals } });
-// });
-
-// export const removeCoupon = asyncHandler(async (req: Request, res: Response) => {
-//   await cartService.removeCoupon(req.user!.sub);
-//   const { cart, issues, totals } = await buildCartResponse(req.user!.sub);
-//   sendSuccess(res, { message: 'Coupon removed', data: { cart, issues, totals } });
-// });
-
-
 import { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/apiResponse';
@@ -59,9 +6,14 @@ import { Product } from '../models/Product.model';
 import { ProductVariant } from '../models/ProductVariant.model';
 import { Inventory } from '../models/Inventory.model';
 import * as cartService from '../services/cart.service';
+import { roundMoney } from '../services/pricing.service';
 
 /** Shapes the cart into exactly what the storefront's Cart/CartItem types expect. */
-async function serializeCart(cart: ICart, totals: Awaited<ReturnType<typeof cartService.computeCartTotals>>) {
+async function serializeCart(
+  cart: ICart,
+  totals: Awaited<ReturnType<typeof cartService.computeCartTotals>>,
+  issues: cartService.CartLineIssue[]
+) {
   const productIds = cart.items.map((i) => i.productId);
   const variantIds = cart.items.map((i) => i.variantId);
 
@@ -75,6 +27,16 @@ async function serializeCart(cart: ICart, totals: Awaited<ReturnType<typeof cart
   const variantById = new Map(variants.map((v) => [v._id.toString(), v]));
   const stockByVariant = new Map(inventories.map((i) => [i.variantId.toString(), i.available]));
 
+  // revalidateCart() has already refreshed every priceSnapshot by now, so `price` would always equal
+  // `currentPrice`. For lines whose price changed during THIS revalidation, report the price the
+  // shopper previously saw as `price` so the storefront's "price changed" notice can show it.
+  const previousPriceByVariant = new Map<string, number>();
+  for (const issue of issues) {
+    if (issue.reason === 'PRICE_CHANGED' && typeof issue.previousPrice === 'number') {
+      previousPriceByVariant.set(issue.variantId, issue.previousPrice);
+    }
+  }
+
   const items = cart.items.map((item) => {
     const product = productById.get(item.productId.toString());
     const variant = variantById.get(item.variantId.toString());
@@ -87,8 +49,8 @@ async function serializeCart(cart: ICart, totals: Awaited<ReturnType<typeof cart
       variantId: item.variantId.toString(),
       variantAttributes: variant?.attributes ?? {},
       quantity: item.qty,
-      price: item.priceSnapshot,
-      currentPrice: variant?.price ?? item.priceSnapshot,
+      price: roundMoney(previousPriceByVariant.get(item.variantId.toString()) ?? item.priceSnapshot),
+      currentPrice: roundMoney(variant?.price ?? item.priceSnapshot),
       stock: stockByVariant.get(item.variantId.toString()) ?? 0,
     };
   });
@@ -109,8 +71,8 @@ async function buildCartResponse(userId: string) {
   const cart = await cartService.getOrCreateCart(userId);
   const { issues } = await cartService.revalidateCart(cart);
   const totals = await cartService.computeCartTotals(cart);
-  const serialized = await serializeCart(cart, totals);
-  return { ...serialized, issues }; // flat Cart shape + an `issues[]` the frontend can ignore or use
+  const serialized = await serializeCart(cart, totals, issues);
+  return { ...serialized, issues }; // flat Cart shape + `issues[]` (the cart page surfaces these)
 }
 
 export const getCart = asyncHandler(async (req: Request, res: Response) => {

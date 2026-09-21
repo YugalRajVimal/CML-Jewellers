@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { ShoppingBag } from "lucide-react";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { useAsync } from "@/lib/use-async";
+import { useCommerce } from "@/lib/commerce-context";
 import type { Cart } from "@/lib/types";
 import { CartLineItem } from "@/components/cart/CartLineItem";
 import { CouponForm } from "@/components/cart/CouponForm";
@@ -13,7 +14,12 @@ import { PriceSummary } from "@/components/cart/PriceSummary";
 export default function CartPage() {
   const [refetchKey, setRefetchKey] = useState(0);
   const state = useAsync(() => apiClient.get<Cart>("/cart"), (cart) => cart.items.length === 0, [refetchKey]);
-  const refetch = useCallback(() => setRefetchKey((k) => k + 1), []);
+  const { refresh } = useCommerce();
+  // Re-load the cart AND refresh the header badge (cart count) after any change.
+  const refetch = useCallback(() => {
+    setRefetchKey((k) => k + 1);
+    refresh();
+  }, [refresh]);
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
@@ -29,11 +35,11 @@ export default function CartPage() {
 
       {state.status === "error" && (
         <p className="mt-8 text-sm text-[var(--color-stone)]">
-          {state.message.toLowerCase().includes("unauthor") || state.message.toLowerCase().includes("token") ? (
+          {state.httpStatus === 401 ? (
             <>
-              Your session has expired.{" "}
+              Please{" "}
               <Link href="/login?next=/cart" className="text-[var(--color-gold)] underline">
-                Log in
+                log in
               </Link>{" "}
               to see your cart.
             </>
@@ -63,6 +69,11 @@ function CartLoaded({ cart, onRefetch }: { cart: Cart; onRefetch: () => void }) 
   const [error, setError] = useState<string | null>(null);
 
   const hasBlockingIssue = cart.items.some((item) => item.stock <= 0 || item.quantity > item.stock);
+  // Out-of-stock and price-change problems are shown on their own line; these two aren't visible there
+  // (an unavailable item has already been removed, a quantity has already been lowered).
+  const notices = (cart.issues ?? []).filter(
+    (issue) => issue.reason === "PRODUCT_UNAVAILABLE" || issue.reason === "INSUFFICIENT_STOCK",
+  );
 
   async function handleQuantityChange(itemId: string, quantity: number) {
     setBusyItemId(itemId);
@@ -93,6 +104,13 @@ function CartLoaded({ cart, onRefetch }: { cart: Cart; onRefetch: () => void }) 
   return (
     <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_320px]">
       <div>
+        {notices.length > 0 && (
+          <ul className="mb-4 flex flex-col gap-1 border border-[var(--color-gold)] bg-[var(--color-cream-deep)] px-4 py-3 text-sm text-[var(--color-ink)]">
+            {notices.map((issue, i) => (
+              <li key={`${issue.variantId}-${issue.reason}-${i}`}>{issue.message}</li>
+            ))}
+          </ul>
+        )}
         {error && <p className="mb-4 text-sm text-[var(--color-maroon)]">{error}</p>}
         {cart.items.map((item) => (
           <CartLineItem

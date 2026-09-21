@@ -47,6 +47,8 @@ export const upsertHomepageSectionSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+export const updateHomepageSectionSchema = upsertHomepageSectionSchema.partial();
+
 export const createAdminUserSchema = z.object({
   name: z.string().min(2).max(100),
   email: z.string().email(),

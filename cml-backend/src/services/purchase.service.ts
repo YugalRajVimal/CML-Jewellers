@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { Purchase, IPurchase, PurchaseStatus } from '../models/Purchase.model';
 import { Supplier } from '../models/Supplier.model';
 import { ProductVariant } from '../models/ProductVariant.model';
@@ -76,13 +77,31 @@ export async function receivePurchase(purchaseId: string, input: ReceivePurchase
     stockLines.push({ variantId: receiveItem.variantId, qty: receiveItem.receivedQty });
   }
 
-  await receivePurchaseStock(stockLines, purchase.purchaseNumber);
-
   const fullyReceived = purchase.items.every((i) => i.receivedQty >= i.orderedQty);
   const partiallyReceived = purchase.items.some((i) => i.receivedQty > 0);
   purchase.status = (fullyReceived ? 'Received' : partiallyReceived ? 'PartiallyReceived' : purchase.status) as PurchaseStatus;
 
-  await purchase.save();
+  // Persist the purchase document's new receivedQty/status FIRST (before touching
+  // Inventory). The Purchase schema has optimisticConcurrency enabled, so if two
+  // "receive" requests race on the same PO — both reading the same receivedQty and
+  // both passing the remaining-quantity check above — only the first save() here
+  // succeeds; the second throws VersionError instead of silently saving on top of
+  // the first. That guarantees we only ever add stock once per receive request that
+  // actually won the race, instead of double-crediting inventory on a lost update.
+  try {
+    await purchase.save();
+  } catch (err) {
+    if (err instanceof mongoose.Error.VersionError) {
+      throw AppError.conflict(
+        'This purchase order was just updated by another request. Please refresh and try again.',
+        'PURCHASE_RECEIVE_CONFLICT'
+      );
+    }
+    throw err;
+  }
+
+  await receivePurchaseStock(stockLines, purchase.purchaseNumber);
+
   return purchase;
 }
 

@@ -3,7 +3,7 @@ import { ApiClientError } from "./api-client";
 
 export type AsyncState<T> =
   | { status: "loading" }
-  | { status: "error"; message: string }
+  | { status: "error"; message: string; httpStatus?: number }
   | { status: "empty" }
   | { status: "success"; data: T };
 
@@ -31,7 +31,11 @@ export function useAsync<T>(fetcher: () => Promise<T>, isEmpty: (data: T) => boo
       .catch((err: unknown) => {
         if (cancelled) return;
         const message = err instanceof ApiClientError ? err.message : "Something went wrong.";
-        setState({ status: "error", message });
+        setState({
+          status: "error",
+          message,
+          httpStatus: err instanceof ApiClientError ? err.status : undefined,
+        });
       });
 
     return () => {

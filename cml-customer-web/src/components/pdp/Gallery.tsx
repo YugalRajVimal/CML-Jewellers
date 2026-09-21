@@ -3,9 +3,13 @@
 import Image from "next/image";
 import { useState } from "react";
 
-export function Gallery({ images, alt }: { images: string[]; alt: string }) {
-  const [active, setActive] = useState(0);
+export function Gallery({ images: rawImages, alt }: { images?: string[]; alt: string }) {
+  const [selected, setSelected] = useState(0);
+  const images = (rawImages ?? []).filter((src) => typeof src === "string" && src.trim() !== "");
   const hasImages = images.length > 0;
+  // The image list changes when a variant with its own photos is selected; never
+  // index past the end of the new list.
+  const active = selected < images.length ? selected : 0;
 
   return (
     <div>
@@ -27,7 +31,7 @@ export function Gallery({ images, alt }: { images: string[]; alt: string }) {
           {images.map((src, i) => (
             <button
               key={src + i}
-              onClick={() => setActive(i)}
+              onClick={() => setSelected(i)}
               className={`relative h-16 w-16 shrink-0 overflow-hidden border ${
                 i === active ? "border-[var(--color-gold)]" : "border-transparent"
               }`}

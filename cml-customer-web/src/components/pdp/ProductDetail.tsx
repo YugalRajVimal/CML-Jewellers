@@ -10,6 +10,8 @@ import { ProductCard } from "@/components/ProductCard";
 import { useRouter } from "next/navigation";
 import { useCommerce } from "@/lib/commerce-context";
 import { useAuth } from "@/lib/auth-context";
+import { useRequireLogin } from "@/lib/require-login";
+import { formatINR } from "@/lib/format";
 import Link from "next/link";
 
 // const TABS = ["Description", "Specifications", "Shipping & Returns"] as const;
@@ -28,6 +30,8 @@ type ApiProduct = {
   images: string[];
   attributes: ProductAttributes;
   categoryId?: { _id: string; name: string; slug: string };
+  subcategoryId?: { _id: string; name: string; slug: string } | null;
+  collectionId?: { _id: string; name: string; slug: string } | null;
   ratingAvg?: number;
   ratingCount?: number;
   isFeatured?: boolean;
@@ -52,19 +56,14 @@ type ProductDetailResponse = {
   relatedProducts: ApiProduct[];
 };
 
-// The product detail endpoint returns prices as plain rupee integers
-// (₹18,000, not paise) — unlike the listing endpoints, which store paise.
-// Keep this formatter local to this page rather than reusing the /100
-// one used elsewhere.
-function formatPrice(value: number) {
-  return `₹${value.toLocaleString("en-IN")}`;
-}
-
 export function ProductDetail({ slug }: { slug: string }) {
   
   const state = useAsync(
     () => apiClient.get<ProductDetailResponse>(`/products/${slug}`),
     (data) => !data?.product,
+    // Re-fetch when the slug changes (e.g. clicking a "You may also like" card keeps
+    // this component mounted and only swaps the slug).
+    [slug],
   );
 
 
@@ -81,19 +80,37 @@ export function ProductDetail({ slug }: { slug: string }) {
     );
   }
 
-  if (state.status === "error") {
+  if (state.status === "error" || state.status === "empty") {
+    // A 404 (or an empty payload) means the product doesn't exist or isn't live —
+    // that is not a connectivity problem, so say so.
+    const httpStatus = state.status === "error" ? state.httpStatus : undefined;
+    const notFound = state.status === "empty" || httpStatus === 404;
     return (
-      <p className="mx-auto max-w-7xl px-6 py-16 text-sm text-[var(--color-stone)]">
-        This product couldn&apos;t be loaded — the backend isn&apos;t connected yet
-        <span className="block text-xs text-[var(--color-stone)]/70">({state.message})</span>
-      </p>
+      <div className="mx-auto max-w-7xl px-6 py-16 text-sm text-[var(--color-stone)]">
+        {notFound ? (
+          <>
+            <h1 className="font-display text-2xl text-[var(--color-ink)]">Product not found</h1>
+            <p className="mt-2">This piece may have been removed or is not available right now.</p>
+            <Link href="/" className="mt-4 inline-block underline">
+              Continue shopping
+            </Link>
+          </>
+        ) : (
+          <>
+            <p>We couldn&apos;t load this product. Please try again in a moment.</p>
+            {state.status === "error" && (
+              <span className="block text-xs text-[var(--color-stone)]/70">({state.message})</span>
+            )}
+          </>
+        )}
+      </div>
     );
   }
 
-  if (state.status === "empty") return null;
-
   return (
     <ProductDetailLoaded
+      // Remount per product so variant / quantity / tab state never leaks between products.
+      key={state.data.product._id}
       product={state.data.product}
       variants={state.data.variants}
       relatedProducts={state.data.relatedProducts}
@@ -172,8 +189,11 @@ function ProductDetailLoaded({
   variants: ApiVariant[];
   relatedProducts: ApiProduct[];
 }) {
-  // If variants array is empty or undefined, prevent runtime errors by using a fallback.
-  const [variant, setVariant] = useState<ApiVariant | undefined>(variants?.[0]);
+  // Start on the first in-stock variant (so an out-of-stock first variant doesn't hide a purchasable one);
+  // if none is in stock, fall back to the first. Guards against an empty/undefined variants array.
+  const [variant, setVariant] = useState<ApiVariant | undefined>(
+    variants?.find((v) => v.available > 0) ?? variants?.[0],
+  );
   const [quantity, setQuantity] = useState(1);
   // Use isWishlisted flag on the main product
   const [wishlisted, setWishlisted] = useState(!!product.isWishlisted);
@@ -183,9 +203,11 @@ function ProductDetailLoaded({
   const router = useRouter();
   const { refresh } = useCommerce();
   const { isLoggedIn } = useAuth();
+  const ensureLoggedIn = useRequireLogin();
 
   async function handleBuyNow() {
     setCartMessage(null);
+    if (!(await ensureLoggedIn())) return; // guests are sent to /login?next=…
     setBusy(true);
     try {
       if (!variant) throw new Error("Variant not found.");
@@ -207,14 +229,21 @@ function ProductDetailLoaded({
 
   const outOfStock = !variant || variant.available <= 0;
 
-  // Attributes live on the product, not the variant, in this API shape —
-  // fall back to a variant's own attributes if a future variant carries them.
-  const specs: ProductAttributes = variant?.attributes ?? product.attributes ?? {};
+  // Product attributes (metal, purity, stone…) describe the piece; a variant's own
+  // attributes (size, colour…) refine them. Variant `attributes` is `{}` by default,
+  // so merge instead of preferring one — and drop blank values.
+  const specs: ProductAttributes = Object.fromEntries(
+    Object.entries({ ...(product.attributes ?? {}), ...(variant?.attributes ?? {}) }).filter(
+      ([, value]) => typeof value === "string" && value.trim() !== "",
+    ),
+  );
+  const collectionName = product.collectionId?.name;
 
   const galleryImages = variant && variant.images && variant.images.length > 0 ? variant.images : product.images;
 
   async function handleAddToCart() {
     setCartMessage(null);
+    if (!(await ensureLoggedIn())) return; // guests are sent to /login?next=…
     setBusy(true);
     try {
       if (!variant) throw new Error("Variant not found.");
@@ -229,6 +258,7 @@ function ProductDetailLoaded({
   }
 
   async function handleToggleWishlist() {
+    if (!(await ensureLoggedIn())) return; // guests are sent to /login?next=…
     const next = !wishlisted;
     setWishlisted(next);
     try {
@@ -280,6 +310,7 @@ function ProductDetailLoaded({
           {product.categoryId?.name && (
             <p className="text-xs tracking-[0.2em] text-[var(--color-gold)]">
               {product.categoryId.name.toUpperCase()}
+              {product.subcategoryId?.name && ` › ${product.subcategoryId.name.toUpperCase()}`}
             </p>
           )}
           <h1 className="font-display mt-1 text-3xl text-[var(--color-ink)]">{product.name}</h1>
@@ -291,18 +322,14 @@ function ProductDetailLoaded({
             {onSale && (
               <span className="text-[var(--color-stone)] line-through">
                 {/* Safely show MRP */}
-                {variant && typeof variant.mrp === "number" ? formatPrice(variant.mrp) : ""}
+                {variant && typeof variant.mrp === "number" ? formatINR(variant.mrp) : ""}
               </span>
             )}
             <span className="font-display text-2xl text-[var(--color-ink)]">
-              {variant && typeof variant.price === "number" ? formatPrice(variant.price) : "N/A"}
+              {variant && typeof variant.price === "number" ? formatINR(variant.price) : "N/A"}
             </span>
             {outOfStock && <span className="text-sm text-[var(--color-maroon)]">Out of stock</span>}
           </div>
-
-          <p className="mt-6 max-w-md text-[15px] leading-relaxed text-[var(--color-stone)]">
-            {product.description}
-          </p>
 
           {variants.length > 1 && (
             <div className="mt-8">
@@ -317,6 +344,8 @@ function ProductDetailLoaded({
                     );
                     if (found) {
                       setVariant(found);
+                      // Keep the chosen quantity within the new variant's stock.
+                      setQuantity((q) => Math.max(1, Math.min(q, found.available > 0 ? found.available : 1)));
                     }
                   }}
                 />
@@ -369,7 +398,11 @@ function ProductDetailLoaded({
             >
               {busy ? "Adding…" : "Add to Cart"}
             </button>
-            <button onClick={handleBuyNow} disabled={outOfStock || busy} className="...">
+            <button
+              onClick={handleBuyNow}
+              disabled={outOfStock || busy}
+              className="inline-flex items-center justify-center rounded-full border border-[var(--color-maroon)] px-6 py-3 text-sm tracking-[0.02em] text-[var(--color-maroon)] transition-colors hover:bg-[var(--color-maroon)] hover:text-[var(--color-cream)] disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[var(--color-maroon)]"
+            >
               {busy ? "Please wait…" : "Buy Now"}
             </button>
           </div>
@@ -393,15 +426,21 @@ function ProductDetailLoaded({
               ))}
             </div>
             <div className="mt-4 text-sm leading-relaxed text-[var(--color-stone)]">
-              {activeTab === "Description" && <p>{product.description}</p>}
+              {activeTab === "Description" &&
+                (product.description?.trim() ? (
+                  <p className="whitespace-pre-line">{product.description}</p>
+                ) : (
+                  <p>No description available.</p>
+                ))}
               {activeTab === "Specifications" && (
                 <ul className="space-y-1">
-                  {Object.entries(specs).length === 0 && <li>No specifications listed.</li>}
+                  {Object.entries(specs).length === 0 && !collectionName && <li>No specifications listed.</li>}
                   {Object.entries(specs).map(([key, value]) => (
-                    <li key={key} className="capitalize">
-                      {key.replace(/([A-Z])/g, " $1")}: {value}
+                    <li key={key}>
+                      <span className="capitalize">{key.replace(/([A-Z])/g, " $1")}</span>: {value}
                     </li>
                   ))}
+                  {collectionName && <li>Collection: {collectionName}</li>}
                 </ul>
               )}
               {activeTab === "Shipping & Returns" && (

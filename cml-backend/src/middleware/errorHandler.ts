@@ -37,12 +37,30 @@ export function globalErrorHandler(err: unknown, req: Request, res: Response, ne
     return;
   }
 
-  // Mongoose validation error
+  // Mongoose cast error — e.g. a malformed ObjectId in `/:id`. Without this it fell through to a 500.
+  if (typeof err === 'object' && err !== null && (err as { name?: string }).name === 'CastError') {
+    const path = (err as { path?: string }).path || 'id';
+    sendError(res, {
+      message: `Invalid value for ${path}`,
+      code: 'INVALID_ID',
+      details: { issues: [{ path, message: `Invalid value for ${path}` }] },
+      statusCode: 400,
+    });
+    return;
+  }
+
+  // Mongoose validation error. `details.issues` matches the shape the zod `validate`
+  // middleware and AppError validation failures use, so clients can render one list.
   if (typeof err === 'object' && err !== null && (err as { name?: string }).name === 'ValidationError') {
+    const fieldErrors = (err as { errors?: Record<string, { message?: string }> }).errors || {};
+    const issues = Object.entries(fieldErrors).map(([path, fieldError]) => ({
+      path,
+      message: fieldError?.message || 'Invalid value',
+    }));
     sendError(res, {
       message: 'Validation failed',
       code: 'VALIDATION_ERROR',
-      details: (err as Error).message,
+      details: { issues },
       statusCode: 422,
     });
     return;

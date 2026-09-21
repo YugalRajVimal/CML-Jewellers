@@ -23,6 +23,12 @@ router.get('/:id', requirePermission(PERMISSIONS.PRODUCT_READ), productControlle
 router.patch('/:id', requirePermission(PERMISSIONS.PRODUCT_WRITE), validate(updateProductSchema), productController.adminUpdateProduct);
 router.delete('/:id', requirePermission(PERMISSIONS.PRODUCT_WRITE), productController.adminDeleteProduct);
 
+// Must be registered before "/:id" would ever be reached for a two-segment
+// path like this anyway, but kept alongside the other variant routes for
+// readability. Used by the Purchases page to resolve a supplier's SKU to a
+// variantId (BUG-04).
+router.get('/variants/search', requirePermission(PERMISSIONS.PRODUCT_READ), productController.adminSearchVariants);
+
 router.get('/:productId/variants', requirePermission(PERMISSIONS.PRODUCT_READ), productController.adminListVariants);
 router.post(
   '/:productId/variants',

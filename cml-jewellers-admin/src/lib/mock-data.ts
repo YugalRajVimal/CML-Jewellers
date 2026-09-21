@@ -501,22 +501,40 @@ export const INVENTORY_TXNS: InventoryTransaction[] = [
 ];
 
 export const SUPPLIERS: Supplier[] = [
-  { id: "sup_1", name: "Chennai Gold Refiners", contact: "+91 98765 43210", address: "Sowcarpet, Chennai" },
-  { id: "sup_2", name: "Surat Diamond Works", contact: "+91 91234 56780", address: "Varachha, Surat" },
+  {
+    id: "sup_1",
+    name: "Chennai Gold Refiners",
+    contact: { phone: "+91 98765 43210", email: "info@chennai-gold.com" },
+    address: { line1: "Sowcarpet", city: "Chennai", state: "TN", country: "IN" },
+  },
+  {
+    id: "sup_2",
+    name: "Surat Diamond Works",
+    contact: { phone: "+91 91234 56780", email: "support@suratdiamond.com" },
+    address: { line1: "Varachha", city: "Surat", state: "GJ", country: "IN" },
+  },
 ];
 
 export const PURCHASES: Purchase[] = [
   {
-    id: "po_1", supplierId: "sup_1", supplierName: "Chennai Gold Refiners", status: "PartiallyReceived",
+    id: "po_1",
+    purchaseNumber: "PO-10001",
+    supplierId: "sup_1",
+    status: "PartiallyReceived",
     items: [
-      { variantId: "v_CML-NK-1001-L", sku: "CML-NK-1001-L", orderedQty: 5, receivedQty: 3, cost: 78000 },
-      { variantId: "v_CML-NK-1088-18", sku: "CML-NK-1088-18", orderedQty: 4, receivedQty: 4, cost: 29500 },
+      { variantId: "v_CML-NK-1001-L", orderedQty: 5, receivedQty: 3, cost: 78000 },
+      { variantId: "v_CML-NK-1088-18", orderedQty: 4, receivedQty: 4, cost: 29500 },
     ],
     createdAt: "2026-08-25T00:00:00Z",
   },
   {
-    id: "po_2", supplierId: "sup_2", supplierName: "Surat Diamond Works", status: "Ordered",
-    items: [{ variantId: "v_CML-RG-5033-12", sku: "CML-RG-5033-12", orderedQty: 4, receivedQty: 0, cost: 98000 }],
+    id: "po_2",
+    purchaseNumber: "PO-10002",
+    supplierId: "sup_2",
+    status: "Ordered",
+    items: [
+      { variantId: "v_CML-RG-5033-12", orderedQty: 4, receivedQty: 0, cost: 98000 }
+    ],
     createdAt: "2026-09-02T00:00:00Z",
   },
 ];

@@ -140,7 +140,7 @@ function AuditLogInner() {
 
 export default function AuditLogPage() {
   return (
-    <PermissionGate perm="dashboard:read">
+    <PermissionGate perm="audit:read">
       <AuditLogInner />
     </PermissionGate>
   );

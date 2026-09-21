@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Minus, Plus, X } from "lucide-react";
 import type { CartItem } from "@/lib/types";
+import { formatINR } from "@/lib/format";
 
 export function CartLineItem({
   item,
@@ -63,7 +64,7 @@ export function CartLineItem({
         )}
         {priceChanged && (
           <p className="mt-1 text-xs text-[var(--color-maroon)]">
-            Price updated to ₹{item.currentPrice} since you added this (was ₹{item.price}).
+            Price updated to {formatINR(item.currentPrice)} since you added this (was {formatINR(item.price)}).
           </p>
         )}
 
@@ -87,7 +88,7 @@ export function CartLineItem({
               <Plus size={12} strokeWidth={1.5} />
             </button>
           </div>
-          <span className="text-sm text-[var(--color-ink)]">₹{item.currentPrice * item.quantity}</span>
+          <span className="text-sm text-[var(--color-ink)]">{formatINR(item.currentPrice * item.quantity)}</span>
         </div>
       </div>
     </div>
