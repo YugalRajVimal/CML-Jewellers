@@ -594,7 +594,8 @@ function PurchasesInner() {
                 if (remaining <= 0) return null;
                 return (
                   <div key={item.variantId} className="rounded-lg border border-line p-2">
-                    <p className="text-xs font-mono mb-1">{item.sku || item.variantId}</p>
+                    <p className="text-xs font-mono mb-1">{item.variantId}</p>
+               
                     <p className="text-[11px] text-ink-500 mb-1.5">{remaining} of {item.orderedQty} remaining</p>
                     <TextInput
                       type="number"
