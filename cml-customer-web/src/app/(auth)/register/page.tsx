@@ -17,25 +17,14 @@ export default function RegisterPage() {
   const [submitting, setSubmitting] = useState(false);
   const { recheck } = useAuth();
 
-  // async function handleSubmit(e: React.FormEvent) {
-  //   e.preventDefault();
-  //   setError(null);
-  //   setSubmitting(true);
-  //   try {
-  //     await apiClient.post("/auth/register", { name, identifier, password }, { auth: false });
-  //     await apiClient.post(
-  //       "/auth/otp/send",
-  //       { channel: identifier.includes("@") ? "email" : "sms", purpose: "register" },
-  //       { auth: false },
-  //     );
-  //     router.push(`/otp?identifier=${encodeURIComponent(identifier)}&purpose=register`);
-  //   } catch (err) {
-  //     setError(err instanceof ApiClientError ? err.message : "Something went wrong. Try again.");
-  //   } finally {
-  //     setSubmitting(false);
-  //   }
-  // }
-
+  // Policy (BUG-15): registration doesn't require proving contact ownership up front —
+  // the account is created and logged in immediately. Ownership is instead proven later,
+  // on demand, via the authenticated /auth/verify/send + /auth/verify/confirm flow (see
+  // the "Verify now" control on the account/settings page). We deliberately do NOT call
+  // the public /auth/otp/send with purpose "verify_contact" here: that purpose is no
+  // longer accepted on the unauthenticated route (it was a spam vector — anyone could
+  // trigger an OTP to an arbitrary email/phone), and the authenticated route derives the
+  // identifier from the logged-in user instead of trusting client input.
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -51,13 +40,8 @@ export default function RegisterPage() {
         },
         { auth: false },
       );
-      setAccessToken(data.accessToken); // register already logs you in — no need to wait on OTP
+      setAccessToken(data.accessToken);
       recheck();
-      await apiClient.post(
-        "/auth/otp/send",
-        { identifier, channel: isEmail ? "email" : "sms", purpose: "verify_contact" },
-        { auth: false },
-      ).catch(() => {}); // best-effort — verification is optional, don't block account creation on it
       router.push("/account");
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : "Something went wrong. Try again.");

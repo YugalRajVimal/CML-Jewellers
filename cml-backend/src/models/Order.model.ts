@@ -66,6 +66,9 @@ export interface IOrder extends Document {
   shipment?: IShipment;
   cancelledAt?: Date;
   cancelReason?: string;
+  // Stamped the first time status becomes Delivered (see pre-save hook below); the
+  // customer return window (7 days) is measured from this, not from createdAt.
+  deliveredAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -122,9 +125,17 @@ const orderSchema = new Schema<IOrder>(
     shipment: { type: shipmentSchema, default: undefined },
     cancelledAt: { type: Date },
     cancelReason: { type: String },
+    deliveredAt: { type: Date },
   },
   { timestamps: true }
 );
+
+orderSchema.pre('save', function (next) {
+  if (this.isModified('status') && this.status === 'Delivered' && !this.deliveredAt) {
+    this.deliveredAt = new Date();
+  }
+  next();
+});
 
 orderSchema.index({ userId: 1, createdAt: -1 });
 

@@ -3,9 +3,10 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { useAsync } from "@/lib/use-async";
-import type { Order } from "@/lib/types";
+import type { Order, ReturnRequest } from "@/lib/types";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { OrderTimeline } from "@/components/orders/OrderTimeline";
 import { ReturnRequestForm } from "@/components/orders/ReturnRequestForm";
@@ -48,13 +49,25 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 }
 
 function OrderDetailLoaded({ order, onRefetch }: { order: Order; onRefetch: () => void }) {
+  const router = useRouter();
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [showReturnForm, setShowReturnForm] = useState(false);
-  const [returnSubmitted, setReturnSubmitted] = useState(false);
 
   const canCancel = order.status === "Pending" || order.status === "Confirmed";
   const canReturn = order.status === "Delivered";
+  const hasReturn = order.status === "ReturnRequested";
+
+  // Once the order has moved into ReturnRequested, look up its return so we can link to it.
+  const returnState = useAsync(
+    () =>
+      hasReturn
+        ? apiClient.get<ReturnRequest[]>(`/returns?orderId=${order.id}`)
+        : Promise.resolve<ReturnRequest[]>([]),
+    (data) => data.length === 0,
+    [order.id, hasReturn]
+  );
+  const existingReturn = returnState.status === "success" ? returnState.data[0] : undefined;
 
   async function handleCancel() {
     setCancelError(null);
@@ -78,7 +91,7 @@ function OrderDetailLoaded({ order, onRefetch }: { order: Order; onRefetch: () =
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-3xl text-[var(--color-ink)]">Order #{order.id}</h1>
+        <h1 className="font-display text-3xl text-[var(--color-ink)]">Order #{order.orderNumber}</h1>
         <OrderStatusBadge status={order.status} />
       </div>
       <p className="mt-1 text-xs text-[var(--color-stone)]">Placed on {new Date(order.createdAt).toLocaleDateString()}</p>
@@ -91,6 +104,20 @@ function OrderDetailLoaded({ order, onRefetch }: { order: Order; onRefetch: () =
         <p className="mt-6 text-sm text-[var(--color-stone)]">
           Tracking: <span className="text-[var(--color-ink)]">{order.trackingNumber}</span>
           {order.trackingCarrier ? ` via ${order.trackingCarrier}` : ""}
+          {order.trackingUrl && (
+            <>
+              {" "}
+              ·{" "}
+              <a
+                href={order.trackingUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[var(--color-gold)] underline"
+              >
+                Track shipment
+              </a>
+            </>
+          )}
         </p>
       )}
 
@@ -134,6 +161,12 @@ function OrderDetailLoaded({ order, onRefetch }: { order: Order; onRefetch: () =
           <span>Shipping</span>
           <span>{order.shipping === 0 ? "Free" : `₹${order.shipping}`}</span>
         </div>
+        {order.tax > 0 && (
+          <div className="flex justify-between text-[var(--color-stone)]">
+            <span>Tax</span>
+            <span>₹{order.tax}</span>
+          </div>
+        )}
         <div className="flex justify-between border-t border-[var(--color-stone-light)] pt-2 font-display text-lg text-[var(--color-ink)]">
           <span>Total</span>
           <span>₹{order.total}</span>
@@ -157,10 +190,15 @@ function OrderDetailLoaded({ order, onRefetch }: { order: Order; onRefetch: () =
             {cancelling ? "Cancelling…" : "Cancel order"}
           </button>
         )}
-        {canReturn && !showReturnForm && !returnSubmitted && (
+        {canReturn && !showReturnForm && (
           <button onClick={() => setShowReturnForm(true)} className="pill">
             Request return
           </button>
+        )}
+        {hasReturn && existingReturn && (
+          <Link href={`/returns/${existingReturn.id}`} className="pill">
+            View return status
+          </Link>
         )}
       </div>
 
@@ -169,19 +207,13 @@ function OrderDetailLoaded({ order, onRefetch }: { order: Order; onRefetch: () =
       {showReturnForm && (
         <ReturnRequestForm
           orderId={order.id}
+          items={order.items}
           onCancel={() => setShowReturnForm(false)}
-          onSubmitted={() => {
+          onSubmitted={(returnId) => {
             setShowReturnForm(false);
-            setReturnSubmitted(true);
-            onRefetch();
+            router.push(`/returns/${returnId}`);
           }}
         />
-      )}
-
-      {returnSubmitted && (
-        <p className="mt-4 text-sm text-[var(--color-maroon)]">
-          Your return request has been submitted. We&apos;ll email you once it&apos;s reviewed.
-        </p>
       )}
     </div>
   );

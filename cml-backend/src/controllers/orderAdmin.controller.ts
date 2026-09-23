@@ -6,6 +6,7 @@ import { Order, canTransitionOrder, OrderStatus } from '../models/Order.model';
 import { parsePagination, buildMeta } from '../utils/pagination';
 import { logger } from '../utils/logger';
 import * as shiprocketService from '../services/shipping/shiprocket.service';
+import * as checkoutService from '../services/checkout.service';
 
 export const adminListOrders = asyncHandler(async (req: Request, res: Response) => {
   const { page, limit, skip } = parsePagination(req.query as Record<string, unknown>);
@@ -46,10 +47,7 @@ export const adminGetOrder = asyncHandler(async (req: Request, res: Response) =>
  */
 export const adminUpdateOrderStatus = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { status } = req.body as { status: OrderStatus };
-
-  const order = await Order.findById(id);
-  if (!order) throw AppError.notFound('Order not found');
+  const { status, reason } = req.body as { status: OrderStatus; reason?: string };
 
   if (status === 'Confirmed') {
     throw AppError.badRequest(
@@ -57,6 +55,29 @@ export const adminUpdateOrderStatus = asyncHandler(async (req: Request, res: Res
       'MANUAL_CONFIRM_NOT_ALLOWED'
     );
   }
+
+  // Returns are only ever initiated by the customer through the returns flow
+  // (see return.service#requestReturn) — an admin manually forcing an order into
+  // ReturnRequested would bypass that flow's own validation entirely (BUG-10).
+  if (status === ('ReturnRequested' as OrderStatus)) {
+    throw AppError.badRequest(
+      'Return requests are created by the customer through the returns flow, not set manually',
+      'MANUAL_RETURN_REQUEST_NOT_ALLOWED'
+    );
+  }
+
+  // Cancelling is not a plain status flip: it must release/return stock, free up
+  // a used coupon slot, and refund a paid order — all of which
+  // checkout.service#cancelOrderByAdmin now handles (BUG-10; previously this just
+  // set status='Cancelled' and did nothing else).
+  if (status === 'Cancelled') {
+    const order = await checkoutService.cancelOrderByAdmin(id, reason);
+    sendSuccess(res, { message: 'Order cancelled', data: { order } });
+    return;
+  }
+
+  const order = await Order.findById(id);
+  if (!order) throw AppError.notFound('Order not found');
 
   if (!canTransitionOrder(order.status, status)) {
     throw AppError.conflict(`Cannot transition order from "${order.status}" to "${status}"`, 'INVALID_ORDER_TRANSITION');
@@ -111,6 +132,8 @@ export const adminAssignShippingCourier = asyncHandler(async (req: Request, res:
   const result = await shiprocketService.assignCourierToOrder(order, courierId);
   sendSuccess(res, { message: 'Courier assigned', data: { order, awb: result } });
 });
+
+export const adminSchedulePickup = asyncHandler(async (req: Request, res: Response) => {});
 
 export const adminScheduleShippingPickup = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;

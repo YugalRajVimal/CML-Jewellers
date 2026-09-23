@@ -15,9 +15,10 @@ function mapCashfreeRefundStatus(cfStatus: string): Extract<RefundStatus, 'Proce
 }
 
 /** Calls Cashfree to actually move the money for a refund, then updates the
- * local Refund doc to match. If the Cashfree call fails, the refund is marked
- * Failed with the error recorded rather than left silently stuck on
- * "Initiated" looking like nothing happened. */
+ * local Refund doc to match. If the Cashfree call fails, the refund is left on
+ * "Initiated" (not force-moved to a false "Completed"/"Processing") so the
+ * caller can tell the refund didn't actually go through and offer a retry
+ * (BUG-17) — previously nothing distinguished this from a real success. */
 async function issueCashfreeRefundAndSync(refund: IRefund, cfOrderId: string): Promise<IRefund> {
   try {
     const result = await createCashfreeRefund(cfOrderId, refund._id.toString(), refund.amount);
@@ -38,8 +39,8 @@ async function issueCashfreeRefundAndSync(refund: IRefund, cfOrderId: string): P
       error: error instanceof Error ? error.message : error,
     });
     // Leave the refund as "Initiated" (rather than force it to "Failed") so an
-    // admin — or a retry job — can attempt the Cashfree call again; provider
-    // failures here are frequently transient (rate limits, timeouts).
+    // admin — or the retry action below — can attempt the Cashfree call again;
+    // provider failures here are frequently transient (rate limits, timeouts).
   }
   return refund;
 }
@@ -53,12 +54,29 @@ export async function initiateRefundForReturn(paymentId: string, returnId: strin
 
   const refund = await Refund.create({
     paymentId,
+    orderId: payment.orderId,
     returnId,
     amount,
+    method: 'cashfree',
     status: 'Initiated',
   });
 
   return issueCashfreeRefundAndSync(refund, payment.providerRefId);
+}
+
+/** Records a manual refund for a return on a COD order — there is no gateway
+ * Payment to call out to, so this simply books the refund; an admin marks it
+ * Completed (or Failed) once the money has actually been paid back to the
+ * customer outside the payment gateway. Previously COD returns had no refund
+ * path at all and got stuck at "Inspected" forever (BUG-17). */
+export async function initiateManualRefundForReturn(orderId: string, returnId: string, amount: number): Promise<IRefund> {
+  return Refund.create({
+    orderId,
+    returnId,
+    amount,
+    method: 'manual',
+    status: 'Processing',
+  });
 }
 
 /** Used when a Confirmed (paid, pre-shipment) order is cancelled directly — not via the Return flow. */
@@ -66,7 +84,9 @@ export async function initiateRefundForCancelledOrder(payment: { _id: unknown },
   const paymentDoc = await Payment.findById(payment._id);
   const refund = await Refund.create({
     paymentId: payment._id,
+    orderId: order._id,
     amount: order.total,
+    method: 'cashfree',
     status: 'Initiated',
   });
 
@@ -79,6 +99,29 @@ export async function initiateRefundForCancelledOrder(payment: { _id: unknown },
   }
 
   return issueCashfreeRefundAndSync(refund, paymentDoc.providerRefId);
+}
+
+/** Re-attempts a Cashfree refund call for a refund stuck on "Initiated" after a
+ * prior provider failure (BUG-17). Manual (COD) refunds have no gateway call to
+ * retry — those are moved to Completed/Failed directly via transitionRefund. */
+export async function retryRefund(refundId: string): Promise<IRefund> {
+  const refund = await Refund.findById(refundId);
+  if (!refund) throw AppError.notFound('Refund not found');
+
+  if (refund.method === 'manual') {
+    throw AppError.conflict('Manual refunds are completed directly, not retried', 'MANUAL_REFUND_NOT_RETRYABLE');
+  }
+  if (refund.status !== 'Initiated') {
+    throw AppError.conflict(`Cannot retry a refund in status "${refund.status}"`, 'REFUND_NOT_RETRYABLE');
+  }
+  if (!refund.paymentId) {
+    throw AppError.conflict('Refund has no associated payment to retry', 'NO_PAYMENT_TO_REFUND');
+  }
+
+  const payment = await Payment.findById(refund.paymentId);
+  if (!payment) throw AppError.notFound('Payment not found');
+
+  return issueCashfreeRefundAndSync(refund, payment.providerRefId);
 }
 
 export async function transitionRefund(refundId: string, to: RefundStatus, failureReason?: string): Promise<IRefund> {

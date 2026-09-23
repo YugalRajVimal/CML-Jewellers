@@ -51,3 +51,26 @@ export async function validateAndComputeDiscount(
 
   return { code: coupon.code, discount: Math.round(discount * 100) / 100 };
 }
+
+/**
+ * Atomically bumps usedCount when an order is actually placed with this coupon
+ * (BUG-11 — this was never called anywhere, so usageLimit was unenforceable).
+ * The condition mirrors validateAndComputeDiscount's own limit check so a
+ * last-instant race can't push usedCount past usageLimit; if the coupon has
+ * since been deleted/disabled/exhausted this is a safe no-op — the order still
+ * goes through with the discount it already computed.
+ */
+export async function incrementCouponUsage(code: string): Promise<void> {
+  await Coupon.findOneAndUpdate(
+    {
+      code: code.toUpperCase(),
+      $or: [{ usageLimit: 0 }, { $expr: { $lt: ['$usedCount', '$usageLimit'] } }],
+    },
+    { $inc: { usedCount: 1 } }
+  );
+}
+
+/** Frees up a redemption slot when an order that used a coupon is cancelled or expires. */
+export async function decrementCouponUsage(code: string): Promise<void> {
+  await Coupon.findOneAndUpdate({ code: code.toUpperCase(), usedCount: { $gt: 0 } }, { $inc: { usedCount: -1 } });
+}

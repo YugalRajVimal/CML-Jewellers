@@ -9,6 +9,7 @@ const router = Router();
 router.use(requireAuth);
 
 router.post('/', validate(requestReturnSchema), returnController.createReturn);
+router.get('/', returnController.listMyReturns);
 router.get('/:id', returnController.getMyReturn);
 
 export default router;

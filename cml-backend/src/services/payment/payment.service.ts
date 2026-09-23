@@ -1,6 +1,6 @@
 
 import { Payment, IPayment, canTransitionPayment } from '../../models/Payment.model';
-import { Order } from '../../models/Order.model';
+import { Order, IOrder } from '../../models/Order.model';
 import { User } from '../../models/User.model';
 import { AppError } from '../../utils/AppError';
 import { createCashfreeOrder, fetchCashfreeOrderStatus } from './cashfreeClient';
@@ -92,9 +92,10 @@ function mapCashfreeStatus(cfStatus: string): 'Pending' | 'Success' | 'Failed' |
 //     throw AppError.conflict(`Cannot initiate payment for an order in status "${order.status}"`, 'ORDER_NOT_PAYABLE');
 //   }
 
-//   // Retry flow: if a non-terminal payment session already exists, only reuse it
-//   // if Cashfree confirms it's still ACTIVE — an expired/abandoned session_id
-//   // fails on Cashfree's side with "client session is invalid" if reused blindly.
+//   // Retry flow: only reuse an existing session if it's recent. Cashfree's
+//   // payment_session_id is short-lived (~30 min) even while the underlying
+//   // *order* stays ACTIVE for weeks — so "order still ACTIVE" is not a safe
+//   // signal to reuse the session. Age is.
 //   const existingPayment = await Payment.findOne({ orderId: order._id }).sort({ createdAt: -1 });
 //   if (existingPayment && ['Created', 'Pending'].includes(existingPayment.status)) {
 //     try {
@@ -240,6 +241,42 @@ export async function syncPaymentStatus(payment: IPayment): Promise<IPayment> {
   return Payment.findById(payment._id) as Promise<IPayment>;
 }
 
+/**
+ * Handles the case where a payment settles Success for an order that is no
+ * longer Pending — e.g. the customer cancelled it, or the reservation-expiry
+ * job already cancelled it, while Cashfree's checkout was still open in
+ * another tab (BUG-12). The customer has been charged but there is no order
+ * left to fulfil, so this auto-refunds the full amount rather than silently
+ * leaving them charged with a cancelled order and no money back.
+ *
+ * `autoRefundClaimedAt` is claimed with a single atomic findOneAndUpdate so a
+ * webhook delivery racing the polling sync endpoint can never both fire the
+ * refund for the same payment.
+ */
+async function handleLatePaymentSuccess(payment: IPayment, order: IOrder): Promise<void> {
+  if (payment.autoRefundClaimedAt) return; // already handled
+
+  const claimed = await Payment.findOneAndUpdate(
+    { _id: payment._id, autoRefundClaimedAt: { $exists: false } },
+    { $set: { autoRefundClaimedAt: new Date() } }
+  );
+  if (!claimed) return; // another caller (webhook vs. poll) already claimed this
+
+  logger.error('Payment succeeded for an order that is no longer payable — auto-refunding', {
+    paymentId: payment._id.toString(),
+    orderId: order._id.toString(),
+    orderStatus: order.status,
+  });
+
+  if (!order.paymentId) {
+    order.paymentId = payment._id;
+    await order.save();
+  }
+
+  const { initiateRefundForCancelledOrder } = await import('../refund.service');
+  await initiateRefundForCancelledOrder(payment, order);
+}
+
 /** Applies a verified status change to Payment + the associated Order, idempotently. */
 export async function applyPaymentStatusChange(
   payment: IPayment,
@@ -272,12 +309,15 @@ export async function applyPaymentStatusChange(
       order.items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
       order.orderNumber
     );
+  } else if (newStatus === 'Success' && order.status !== 'Pending') {
+    // Order moved on (cancelled by the customer, or expired) before this payment
+    // settled — see handleLatePaymentSuccess above (BUG-12).
+    await handleLatePaymentSuccess(payment, order);
   } else if ((newStatus === 'Failed' || newStatus === 'Cancelled') && order.status === 'Pending') {
     // Payment attempt failed/expired — leave the order Pending with stock still
     // reserved so the customer can retry via createPaymentSession(). Stock is only
-    // released on explicit order cancellation (see checkout.service#cancelOrder).
-    // NOTE: production deployments should add a reservation-expiry job to release
-    // stock for Pending orders whose payment attempts have gone stale entirely.
+    // released on explicit order cancellation (see checkout.service#cancelOrder)
+    // or by the reservation-expiry job for orders abandoned entirely.
     order.paymentId = payment._id;
     await order.save();
   }

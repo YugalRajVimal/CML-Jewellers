@@ -20,7 +20,15 @@ export const listCategoryTree = asyncHandler(async (_req: Request, res: Response
 
   function attachChildren(cat: (typeof categories)[number]): Record<string, unknown> {
     const children = byParent.get(cat._id.toString()) || [];
-    return { ...cat, subcategories: children.map(attachChildren) };
+    // BUG-23: .lean() docs only carry _id, not the virtual `id` the storefront
+    // reads (Customer FeaturedCategories keyed on category.id and got
+    // `undefined` for every row). Normalize both id and parentId to strings.
+    return {
+      ...cat,
+      id: cat._id.toString(),
+      parentId: cat.parentId ? cat.parentId.toString() : null,
+      subcategories: children.map(attachChildren),
+    };
   }
 
   const tree = (byParent.get('root') || []).map(attachChildren);

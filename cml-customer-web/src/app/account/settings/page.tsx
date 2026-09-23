@@ -1,119 +1,3 @@
-// "use client";
-
-// import { useState } from "react";
-// import { useRouter } from "next/navigation";
-// import { apiClient, ApiClientError } from "@/lib/api-client";
-// import { clearTokens } from "@/lib/auth";
-// import { useAuth } from "@/lib/auth-context";
-
-// function VerifyBadge({ label, verified, onVerify }: { label: string; verified: boolean; onVerify: () => void }) {
-//   return (
-//     <div className="flex items-center justify-between border-b border-[var(--color-stone-light)] py-3">
-//       <span className="text-sm">{label}</span>
-//       {verified ? (
-//         <span className="text-xs font-medium text-green-700">Verified</span>
-//       ) : (
-//         <button onClick={onVerify} className="text-xs text-[var(--color-gold)] underline">
-//           Verify now
-//         </button>
-//       )}
-//     </div>
-//   );
-// }
-
-// export default function SettingsPage() {
-//   const router = useRouter();
-//   const [busy, setBusy] = useState(false);
-//   const { recheck } = useAuth();
-//   const [verifyChannel, setVerifyChannel] = useState<"email" | "sms" | null>(null);
-// const [verifyCode, setVerifyCode] = useState("");
-// const [verifyError, setVerifyError] = useState<string | null>(null);
-// const [verifySubmitting, setVerifySubmitting] = useState(false);
-
-// async function startVerify(channel: "email" | "sms") {
-//   setVerifyError(null);
-//   try {
-//     await apiClient.post("/auth/verify/send", { channel });
-//     setVerifyChannel(channel);
-//   } catch (err) {
-//     setVerifyError(err instanceof ApiClientError ? err.message : "Couldn't send code.");
-//   }
-// }
-
-// async function confirmVerify(e: React.FormEvent) {
-//   e.preventDefault();
-//   if (!verifyChannel) return;
-//   setVerifySubmitting(true);
-//   setVerifyError(null);
-//   try {
-//     await apiClient.post("/auth/verify/confirm", { channel: verifyChannel, code: verifyCode });
-//     setVerifyChannel(null);
-//     setVerifyCode("");
-//     // refetch profile so emailVerified/phoneVerified update in the UI
-//     loadProfile();
-//   } catch (err) {
-//     setVerifyError(err instanceof ApiClientError ? err.message : "Invalid or expired code.");
-//   } finally {
-//     setVerifySubmitting(false);
-//   }
-// }
-
-//   async function handleLogout() {
-//     setBusy(true);
-//     try {
-//       await apiClient.post("/auth/logout");
-//     } catch {
-//       // even if the backend call fails, clear local state and send them to login
-//     } finally {
-//       clearTokens();
-//       recheck();
-//       router.push("/login");
-//     }
-//   }
-
-  
-
-//   return (
-//     <div>
-//       <h1 className="font-display text-3xl text-[var(--color-ink)]">Settings</h1>
-
-//       <VerifyBadge label={`Email — ${user.email}`} verified={user.emailVerified} onVerify={() => startVerify("email")} />
-// {user.phone && (
-//   <VerifyBadge label={`Phone — ${user.phone}`} verified={user.phoneVerified} onVerify={() => startVerify("sms")} />
-// )}
-
-// {verifyChannel && (
-//   <form onSubmit={confirmVerify} className="mt-3 flex items-center gap-2">
-//     <input
-//       value={verifyCode}
-//       onChange={(e) => setVerifyCode(e.target.value)}
-//       placeholder="6-digit code"
-//       className="border border-[var(--color-stone-light)] px-3 py-2 text-sm"
-//     />
-//     <button type="submit" disabled={verifySubmitting} className="pill disabled:opacity-60">
-//       {verifySubmitting ? "Verifying…" : "Confirm"}
-//     </button>
-//     {verifyError && <p className="text-xs text-red-700">{verifyError}</p>}
-//   </form>
-// )}
-
-//       <div className="mt-8 max-w-md">
-//         <p className="text-sm text-[var(--color-stone)]">
-//           To change your password, use{" "}
-//           <a href="/forgot-password" className="text-[var(--color-gold)] underline">
-//             forgot password
-//           </a>{" "}
-//           from the login screen.
-//         </p>
-
-//         <button onClick={handleLogout} disabled={busy} className="pill mt-8 disabled:opacity-50">
-//           {busy ? "Logging out…" : "Log out"}
-//         </button>
-//       </div>
-//     </div>
-//   );
-// }
-
 "use client";
 
 import { useState } from "react";
@@ -121,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { useAsync } from "@/lib/use-async";
 import { clearTokens } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
 import type { User } from "@/lib/types";
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { recheck } = useAuth();
   const [busy, setBusy] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -142,6 +28,7 @@ export default function SettingsPage() {
       // even if the backend call fails, clear local state and send them to login
     } finally {
       clearTokens();
+      recheck();
       router.push("/login");
     }
   }

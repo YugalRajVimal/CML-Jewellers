@@ -24,6 +24,10 @@ export interface IPayment extends Document {
   status: PaymentStatus;
   verifiedAt?: Date;
   failureReason?: string;
+  // Set (atomically) the first time we auto-refund this payment because it succeeded
+  // for an order that could no longer accept it (already Cancelled) — stops a
+  // webhook + poll race from triggering the refund twice.
+  autoRefundClaimedAt?: Date;
   rawWebhookEvents: { receivedAt: Date; eventType: string; payload: unknown }[];
   createdAt: Date;
   updatedAt: Date;
@@ -39,6 +43,7 @@ const paymentSchema = new Schema<IPayment>(
     status: { type: String, enum: ['Created', 'Pending', 'Success', 'Failed', 'Cancelled'], default: 'Created', index: true },
     verifiedAt: { type: Date },
     failureReason: { type: String },
+    autoRefundClaimedAt: { type: Date },
     rawWebhookEvents: [
       {
         receivedAt: { type: Date, default: Date.now },

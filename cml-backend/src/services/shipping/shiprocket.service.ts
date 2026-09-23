@@ -1,5 +1,5 @@
-import { IOrder, OrderStatus } from '../../models/Order.model';
-import { IReturn } from '../../models/Return.model';
+import { IOrder, IOrderItem, OrderStatus } from '../../models/Order.model';
+import { IReturn, IReturnItem } from '../../models/Return.model';
 import { ProductVariant } from '../../models/ProductVariant.model';
 import { User } from '../../models/User.model';
 import { AppError } from '../../utils/AppError';
@@ -13,22 +13,38 @@ import * as shiprocket from './shiprocketClient';
 // to backfill those or keep using one default.
 const DEFAULT_PACKAGE = { weightKg: 0.5, lengthCm: 15, breadthCm: 10, heightCm: 5 };
 
-function packageSizeForOrder(variants: { weightKg?: number; lengthCm?: number; breadthCm?: number; heightCm?: number }[]) {
-  // Sum weight across line items; use the largest single-item dimensions as a
-  // simple stand-in for "one box that fits everything" — good enough until
-  // real per-product dimensions exist to do actual box-packing.
+/**
+ * Builds the package size for a set of order/return line items by looking up
+ * each item's variant dimensions.
+ *
+ * BUG-18: previously took an already-fetched variants array with no
+ * quantities attached, so weight never accounted for how many of each item
+ * were ordered. This now takes the {variantId, qty} pairs directly, fetches
+ * every dimension (not just weightKg), and multiplies weight by qty.
+ * Dimensions use the largest single-item footprint as a simple stand-in for
+ * "one box that fits everything" — qty doesn't change a single box's
+ * footprint, only its weight.
+ */
+async function packageSizeForItems(items: { variantId: IOrderItem['variantId'] | IReturnItem['variantId']; qty: number }[]) {
+  const variantIds = items.map((i) => i.variantId);
+  const variants = await ProductVariant.find({ _id: { $in: variantIds } }).select(
+    'weightKg lengthCm breadthCm heightCm'
+  );
+  const byId = new Map(variants.map((v) => [v._id.toString(), v]));
+
   let weightKg = 0;
   let lengthCm = 0;
   let breadthCm = 0;
   let heightCm = 0;
   let anyMissing = false;
 
-  for (const v of variants) {
-    if (v.weightKg === undefined || v.lengthCm === undefined || v.breadthCm === undefined || v.heightCm === undefined) {
+  for (const item of items) {
+    const v = byId.get(item.variantId.toString());
+    if (!v || v.weightKg === undefined || v.lengthCm === undefined || v.breadthCm === undefined || v.heightCm === undefined) {
       anyMissing = true;
       continue;
     }
-    weightKg += v.weightKg;
+    weightKg += v.weightKg * item.qty;
     lengthCm = Math.max(lengthCm, v.lengthCm);
     breadthCm = Math.max(breadthCm, v.breadthCm);
     heightCm = Math.max(heightCm, v.heightCm);
@@ -53,11 +69,7 @@ export async function createShipmentForOrder(order: IOrder): Promise<{
   shiprocketOrderId: string;
   shipmentId: string;
 }> {
-  const variantIds = order.items.map((i) => i.variantId);
-  const variants = await ProductVariant.find({ _id: { $in: variantIds } }).select(
-    'weightKg lengthCm breadthCm heightCm'
-  );
-  const packageSize = packageSizeForOrder(variants);
+  const packageSize = await packageSizeForItems(order.items.map((i) => ({ variantId: i.variantId, qty: i.qty })));
 
   const customer = await User.findById(order.userId).select('name email phone');
   const address = order.addressSnapshot as Record<string, unknown>;
@@ -87,11 +99,19 @@ export async function createShipmentForOrder(order: IOrder): Promise<{
     ...packageSize,
   });
 
-  order.shipment = {
-    ...(order.shipment ?? {}),
-    shiprocketOrderId: result.shiprocketOrderId,
-    shiprocketShipmentId: result.shipmentId,
-  };
+  // BUG-18: `order.shipment` is a Mongoose single-nested subdocument — its
+  // real field values live behind getters, not as the subdocument's own
+  // enumerable properties, so `{ ...order.shipment }` silently drops
+  // previously-set fields. Set directly instead of spreading.
+  if (!order.shipment) {
+    order.shipment = {
+      shiprocketOrderId: result.shiprocketOrderId,
+      shiprocketShipmentId: result.shipmentId,
+    };
+  } else {
+    order.shipment.shiprocketOrderId = result.shiprocketOrderId;
+    order.shipment.shiprocketShipmentId = result.shipmentId;
+  }
   await order.save();
 
   return result;
@@ -103,9 +123,7 @@ export async function checkServiceabilityForOrder(order: IOrder) {
     throw AppError.conflict('No Shiprocket shipment exists for this order yet', 'SHIPMENT_NOT_CREATED');
   }
   const address = order.addressSnapshot as Record<string, unknown>;
-  const variantIds = order.items.map((i) => i.variantId);
-  const variants = await ProductVariant.find({ _id: { $in: variantIds } }).select('weightKg');
-  const packageSize = packageSizeForOrder(variants);
+  const packageSize = await packageSizeForItems(order.items.map((i) => ({ variantId: i.variantId, qty: i.qty })));
 
   return shiprocket.checkServiceability({
     pickupPincode: env.shiprocket.pickupPincode, // placeholder — Shiprocket resolves this from pickup_location internally on most plans
@@ -139,18 +157,24 @@ export async function schedulePickupForOrder(order: IOrder) {
   return result;
 }
 
+// Shiprocket's own tracking vocabulary for a forward shipment (verified against
+// their tracking webhook/API docs). Matched by exact value only (BUG-18) — RTO
+// and "UNDELIVERED" statuses are deliberately NOT in these sets even though they
+// contain "IN TRANSIT" / "DELIVERED" as substrings, and must never auto-apply a
+// forward Order.status transition.
+const SHIPPED_STATUSES = new Set(['PICKED UP', 'IN TRANSIT', 'SHIPPED', 'OUT FOR DELIVERY']);
+const DELIVERED_STATUSES = new Set(['DELIVERED']);
+
 /** Maps Shiprocket's tracking vocabulary onto our OrderStatus. Returns null for
  * statuses that don't correspond to a forward-order transition (e.g. an RTO
  * or an intermediate courier-side hop we don't model). */
 export function mapTrackingStatusToOrderStatus(shiprocketStatus: string): OrderStatus | null {
-  const s = shiprocketStatus.toUpperCase();
-  if (s.includes('OUT FOR DELIVERY') || s.includes('IN TRANSIT') || s.includes('SHIPPED') || s.includes('PICKED UP')) {
-    return 'Shipped';
-  }
-  if (s.includes('DELIVERED')) return 'Delivered';
-  // RTO (return to origin), lost, or other exception statuses are surfaced via
-  // shipment.lastTrackingStatus but intentionally NOT auto-applied to
-  // Order.status — those need a human to decide the right next step.
+  const s = shiprocketStatus.trim().toUpperCase();
+  if (DELIVERED_STATUSES.has(s)) return 'Delivered';
+  if (SHIPPED_STATUSES.has(s)) return 'Shipped';
+  // RTO (return to origin), UNDELIVERED, lost, or other exception statuses are
+  // surfaced via shipment.lastTrackingStatus but intentionally NOT auto-applied
+  // to Order.status — those need a human to decide the right next step.
   return null;
 }
 
@@ -197,9 +221,7 @@ export async function createReverseShipmentForReturn(returnDoc: IReturn, order: 
   const address = order.addressSnapshot as Record<string, unknown>;
   const customer = await User.findById(order.userId).select('name email phone');
 
-  const variantIds = returnDoc.items.map((i) => i.variantId);
-  const variants = await ProductVariant.find({ _id: { $in: variantIds } }).select('weightKg lengthCm breadthCm heightCm');
-  const packageSize = packageSizeForOrder(variants);
+  const packageSize = await packageSizeForItems(returnDoc.items.map((i) => ({ variantId: i.variantId, qty: i.qty })));
 
   const lineByVariant = new Map(order.items.map((i) => [i.variantId.toString(), i]));
   const items = returnDoc.items.map((ri) => {

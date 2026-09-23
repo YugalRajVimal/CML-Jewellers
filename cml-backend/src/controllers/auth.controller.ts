@@ -45,10 +45,15 @@ export const confirmContactVerification = asyncHandler(async (req: Request, res:
 });
 
 function setRefreshCookie(res: Response, token: string): void {
+  // SameSite=None is required for the cookie to be sent on cross-site requests (when the
+  // storefront and API live on different registrable domains), and browsers require
+  // Secure whenever SameSite=None is used — so secure must follow crossSite, not just
+  // nodeEnv (BUG-16).
+  const crossSite = env.cookies.crossSite;
   res.cookie(REFRESH_COOKIE_NAME, token, {
     httpOnly: true,
-    secure: env.nodeEnv === 'production',
-    sameSite: 'lax',
+    secure: env.nodeEnv === 'production' || crossSite,
+    sameSite: crossSite ? 'none' : 'lax',
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     path: '/api/v1/auth',
   });
@@ -112,9 +117,17 @@ export const refresh = asyncHandler(async (req: Request, res: Response) => {
 export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
   const { email, phone } = req.body;
   const otpService = await import('../services/otp.service');
-  const identifier = email || phone;
+  const { normalizePhone } = await import('../utils/phone');
+  const identifier = email || normalizePhone(phone);
   const channel = email ? 'email' : 'sms';
-  await otpService.requestOtp(identifier, channel, 'password_reset');
+
+  // BUG-15: the message below already claimed this was conditional on the account existing,
+  // but it wasn't actually checked — fix so a reset code is only sent (and OTP records only
+  // created) when an account exists, without changing the response either way.
+  const existing = await User.findOne(email ? { email } : { phone: identifier }).select('_id');
+  if (existing) {
+    await otpService.requestOtp(identifier, channel, 'password_reset');
+  }
 
   sendSuccess(res, { message: 'If the account exists, a reset code has been sent' });
 });

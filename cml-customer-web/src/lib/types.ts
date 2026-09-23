@@ -199,19 +199,21 @@ export interface OrderLineItem {
   quantity: number;
   price: number;
 }
-
 export interface Order {
   id: string;
+  orderNumber: string;
   status: OrderStatus;
   items: OrderLineItem[];
   subtotal: number;
   discount: number;
   shipping: number;
+  tax: number;
   total: number;
   address: Address;
   createdAt: string;
   trackingNumber?: string;
   trackingCarrier?: string;
+  trackingUrl?: string;
 }
 
 export type PaymentStatus = "Created" | "Pending" | "Success" | "Failed" | "Cancelled";

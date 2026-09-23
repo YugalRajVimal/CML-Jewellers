@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { ICart } from '../models/Cart.model';
-import { Order } from '../models/Order.model';
+import { Order, IOrder } from '../models/Order.model';
 import { Address } from '../models/Address.model';
 import { Product } from '../models/Product.model';
 import { ProductVariant } from '../models/ProductVariant.model';
@@ -9,6 +9,8 @@ import { revalidateCart, computeCartTotals, getOrCreateCart } from './cart.servi
 import { reserveStock, markStockSold } from './inventory.service';
 import { generateOrderNumber } from '../utils/orderNumber';
 import { getSettings } from '../models/Setting.model';
+import { incrementCouponUsage, decrementCouponUsage } from './coupon.service';
+import { logger } from '../utils/logger';
 
 export async function validateCheckout(userId: string, addressId: string) {
   const cart = await getOrCreateCart(userId);
@@ -94,6 +96,19 @@ export async function createOrderFromCart(userId: string, addressId: string, pay
       await markStockSold(stockLines, orderNumber);
     }
 
+    // Coupon redemption is counted the moment an order is actually placed with it —
+    // this was never called anywhere before, so usageLimit could never be enforced
+    // (BUG-11). Best-effort: a failure here shouldn't block order placement.
+    if (totals.couponCode) {
+      await incrementCouponUsage(totals.couponCode).catch((err) => {
+        logger.error('Failed to increment coupon usage', {
+          code: totals.couponCode,
+          orderNumber,
+          error: err instanceof Error ? err.message : err,
+        });
+      });
+    }
+
     // Clear the cart only after the order is successfully persisted.
     cart.items = [] as unknown as ICart['items'];
     cart.couponCode = undefined;
@@ -117,15 +132,14 @@ export async function getOrderForUser(userId: string, orderId: string) {
   return order;
 }
 
-export async function cancelOrder(userId: string, orderId: string, reason?: string) {
-  const order = await getOrderForUser(userId, orderId);
-
-  if (!['Pending', 'Confirmed'].includes(order.status)) {
-    throw AppError.conflict(`Order cannot be cancelled from status "${order.status}"`, 'ORDER_NOT_CANCELLABLE');
-  }
-
-  const wasConfirmed = order.status === 'Confirmed';
-
+/**
+ * Releases/returns stock, frees up a coupon redemption, and — if the order had
+ * already been paid for — kicks off a refund. Shared by the customer-initiated
+ * cancel path, the admin-initiated cancel path, and the reservation-expiry job
+ * (which passes wasConfirmed=false, since an expired-and-never-paid order was
+ * never Confirmed and has nothing to refund).
+ */
+async function applyCancelSideEffects(order: IOrder, wasConfirmed: boolean): Promise<void> {
   const { releaseStock, returnSoldStockToAvailable } = await import('./inventory.service');
   const stockLines = order.items.map((i) => ({ variantId: i.variantId, qty: i.qty }));
   if (wasConfirmed) {
@@ -134,10 +148,15 @@ export async function cancelOrder(userId: string, orderId: string, reason?: stri
     await releaseStock(stockLines, order.orderNumber);
   }
 
-  order.status = 'Cancelled';
-  order.cancelledAt = new Date();
-  order.cancelReason = reason;
-  await order.save();
+  if (order.couponCode) {
+    await decrementCouponUsage(order.couponCode).catch((err) => {
+      logger.error('Failed to decrement coupon usage on cancellation', {
+        code: order.couponCode,
+        orderNumber: order.orderNumber,
+        error: err instanceof Error ? err.message : err,
+      });
+    });
+  }
 
   // If the order was already paid for, automatically initiate a refund.
   if (wasConfirmed && order.paymentId) {
@@ -149,26 +168,111 @@ export async function cancelOrder(userId: string, orderId: string, reason?: stri
     }
   }
 
-  return order;
+  if (order.shipment?.shiprocketShipmentId) {
+    // No Shiprocket "cancel shipment" call exists yet (tracked separately) — flag it
+    // loudly so an admin cancels the pickup/shipment in the Shiprocket dashboard
+    // rather than it silently continuing to ship a cancelled order.
+    logger.error('Order cancelled after a Shiprocket shipment was created — cancel it manually in Shiprocket', {
+      orderId: order._id.toString(),
+      orderNumber: order.orderNumber,
+      shiprocketShipmentId: order.shipment.shiprocketShipmentId,
+    });
+  }
 }
 
-/** Cancels stale Pending orders (no successful payment within the window) and releases their reserved stock. */
+/**
+ * Cancels a customer's own order. Uses a single conditional findOneAndUpdate
+ * (status must still be Pending/Confirmed at the moment of the write) so two
+ * concurrent cancel requests — or a cancel racing the expiry job — can never
+ * both apply the stock/refund side effects for the same order (BUG-10).
+ */
+export async function cancelOrder(userId: string, orderId: string, reason?: string) {
+  const baseFilter = mongoose.isValidObjectId(orderId) ? { _id: orderId, userId } : { orderNumber: orderId, userId };
+
+  const previous = await Order.findOneAndUpdate(
+    { ...baseFilter, status: { $in: ['Pending', 'Confirmed'] } },
+    { $set: { status: 'Cancelled', cancelledAt: new Date(), cancelReason: reason } }
+  );
+
+  if (!previous) {
+    const existing = await Order.findOne(baseFilter);
+    if (!existing) throw AppError.notFound('Order not found');
+    throw AppError.conflict(`Order cannot be cancelled from status "${existing.status}"`, 'ORDER_NOT_CANCELLABLE');
+  }
+
+  await applyCancelSideEffects(previous, previous.status === 'Confirmed');
+
+  return getOrderForUser(userId, orderId);
+}
+
+/**
+ * Admin-initiated cancellation (BUG-10): previously `adminUpdateOrderStatus` just
+ * flipped `status` with no side effects, so cancelling from the admin panel never
+ * released reserved/sold stock and never refunded a paid order. Routes through the
+ * exact same atomic guard + side effects as the customer cancel path above.
+ */
+export async function cancelOrderByAdmin(orderId: string, reason?: string): Promise<IOrder> {
+  if (!mongoose.isValidObjectId(orderId)) {
+    throw AppError.badRequest('Invalid order id', 'INVALID_ORDER_ID');
+  }
+
+  const previous = await Order.findOneAndUpdate(
+    { _id: orderId, status: { $in: ['Pending', 'Confirmed'] } },
+    { $set: { status: 'Cancelled', cancelledAt: new Date(), cancelReason: reason ?? 'Cancelled by admin' } }
+  );
+
+  if (!previous) {
+    const existing = await Order.findById(orderId);
+    if (!existing) throw AppError.notFound('Order not found');
+    throw AppError.conflict(`Order cannot be cancelled from status "${existing.status}"`, 'ORDER_NOT_CANCELLABLE');
+  }
+
+  await applyCancelSideEffects(previous, previous.status === 'Confirmed');
+
+  return (await Order.findById(orderId)) as IOrder;
+}
+
+/**
+ * Cancels stale Pending orders (no successful payment within the window) and
+ * releases their reserved stock. Before giving up on a reservation, first syncs
+ * the order's latest payment with Cashfree (BUG-12) — a webhook can be missed,
+ * and without this check a payment that actually succeeded moments before the
+ * window closed would otherwise get its order cancelled out from under it.
+ */
 export async function releaseExpiredReservations(olderThanMinutes = 30): Promise<number> {
   const cutoff = new Date(Date.now() - olderThanMinutes * 60 * 1000);
-  const { releaseStock } = await import('./inventory.service');
+  const { Payment } = await import('../models/Payment.model');
+  const { syncPaymentStatus } = await import('./payment/payment.service');
 
   const staleOrders = await Order.find({ status: 'Pending', createdAt: { $lt: cutoff } });
 
+  let releasedCount = 0;
+
   for (const order of staleOrders) {
-    await releaseStock(
-      order.items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
-      order.orderNumber
-    );
-    order.status = 'Cancelled';
-    order.cancelledAt = new Date();
-    order.cancelReason = 'Reservation expired — no successful payment';
-    await order.save();
+    const latestPayment = await Payment.findOne({ orderId: order._id }).sort({ createdAt: -1 });
+    if (latestPayment && latestPayment.status !== 'Success' && latestPayment.status !== 'Failed') {
+      try {
+        await syncPaymentStatus(latestPayment);
+      } catch (err) {
+        logger.warn('releaseExpiredReservations: could not sync payment status before expiring reservation', {
+          orderId: order._id.toString(),
+          error: err instanceof Error ? err.message : err,
+        });
+      }
+    }
+
+    // Re-fetch: syncPaymentStatus may have just confirmed the order (or otherwise
+    // moved it on) via applyPaymentStatusChange — don't cancel out from under that.
+    const fresh = await Order.findOne({ _id: order._id, status: 'Pending' });
+    if (!fresh) continue;
+
+    await applyCancelSideEffects(fresh, false);
+    fresh.status = 'Cancelled';
+    fresh.cancelledAt = new Date();
+    fresh.cancelReason = 'Reservation expired — no successful payment';
+    await fresh.save();
+    releasedCount++;
   }
 
-  return staleOrders.length;
+  return releasedCount;
 }

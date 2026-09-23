@@ -326,11 +326,14 @@ export async function listCollections() {
   return http.get<{ collections: Collection[] }>("/collections");
 }
 
-export async function createCategory(input: { name: string; parentId?: string | null }) {
+export async function createCategory(input: { name: string; parentId?: string | null; image?: string | null }) {
   return http.post<Category>("/categories", input);
 }
 
-export async function updateCategory(id: string, patch: Partial<Pick<Category, "name" | "isActive" | "parentId">>) {
+export async function updateCategory(
+  id: string,
+  patch: Partial<Pick<Category, "name" | "isActive" | "parentId" | "image">>
+) {
   return http.patch<Category>(`/categories/${id}`, patch);
 }
 

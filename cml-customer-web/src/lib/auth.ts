@@ -5,6 +5,17 @@
 const ACCESS_TOKEN_KEY = "cml_access_token";
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
+/** Fired whenever the token in memory changes (set or cleared), so AuthContext can stay in sync
+ * even when the change happens outside of a component (e.g. api-client clearing tokens after a
+ * failed silent refresh). */
+export const AUTH_CHANGED_EVENT = "cml:auth-changed";
+
+function notifyAuthChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+  }
+}
+
 let inMemoryToken: string | null = null;
 
 export function getAccessToken(): string | null {
@@ -19,6 +30,7 @@ export function setAccessToken(token: string) {
   if (typeof window !== "undefined") {
     window.sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
   }
+  notifyAuthChanged();
 }
 
 export function clearTokens() {
@@ -26,6 +38,7 @@ export function clearTokens() {
   if (typeof window !== "undefined") {
     window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
   }
+  notifyAuthChanged();
 }
 
 let refreshInFlight: Promise<boolean> | null = null;

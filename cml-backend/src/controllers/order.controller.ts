@@ -24,6 +24,9 @@ async function serializeOrder(order: IOrder) {
 
   return {
     id: order._id.toString(),
+    // BUG-22: the storefront showed the Mongo _id as "Order #" — orderNumber
+    // is the human-facing identifier and was never sent.
+    orderNumber: order.orderNumber,
     status: order.status,
     paymentMethod: order.paymentMethod,
     items: order.items.map((item) => ({
@@ -38,6 +41,9 @@ async function serializeOrder(order: IOrder) {
     subtotal: order.subtotal,
     discount: order.discount,
     shipping: order.shipping,
+    // BUG-22: tax was silently dropped, so subtotal - discount + shipping
+    // never added up to total on the storefront.
+    tax: order.tax,
     total: order.total,
     address: {
       id: order.addressId?.toString() ?? '',
@@ -51,9 +57,11 @@ async function serializeOrder(order: IOrder) {
       phone: snapshot.phone,
     },
     createdAt: order.createdAt,
-    // No shipment-tracking integration exists yet — intentionally omitted rather than faked.
-    trackingNumber: undefined,
-    trackingCarrier: undefined,
+    // BUG-22: now sourced from the Shiprocket integration's shipment data
+    // instead of being hardcoded to undefined.
+    trackingNumber: order.shipment?.awbCode,
+    trackingCarrier: order.shipment?.courierName,
+    trackingUrl: order.shipment?.trackingUrl,
   };
 }
 

@@ -244,13 +244,32 @@ import { FaThreads } from "react-icons/fa6";
 import { FaFacebookF, FaInstagram, FaTwitter, FaYoutube } from "react-icons/fa";
 import { useAuth } from "@/lib/auth-context";
 import { useCommerce } from "@/lib/commerce-context";
+import { apiClient } from "@/lib/api-client";
+import type { Category } from "@/lib/types";
 
+// BUG-23: "Shop" is the only nav item with hasDropdown set, and it's what
+// drives the top-level category dropdown fetched below.
 const NAV_LINKS: { label: string; href: string; hasDropdown?: boolean }[] = [
   { label: "Home", href: "/" },
-  { label: "Shop", href: "/shop" },
+  { label: "Shop", href: "/shop", hasDropdown: true },
   { label: "About Us", href: "/about" },
   { label: "Contact Us", href: "/contact" },
 ];
+
+/** Returns an array of categories from the backend response, handling both
+ * array and `{ categories: Category[] }` shapes. */
+function getCategoriesFromData(data: any): Category[] {
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.categories)) return data.categories;
+  return [];
+}
+
+// const NAV_LINKS: { label: string; href: string; hasDropdown?: boolean }[] = [
+//   { label: "Home", href: "/" },
+//   { label: "Shop", href: "/shop" },
+//   { label: "About Us", href: "/about" },
+//   { label: "Contact Us", href: "/contact" },
+// ];
 
 const SOCIALS = [
   { Icon: FaThreads, label: "Threads" },
@@ -267,6 +286,25 @@ export function Header() {
   const reduce = useReducedMotion();
   const { isLoggedIn } = useAuth();
 const { cartCount, wishlistCount } = useCommerce();
+const [categories, setCategories] = useState<Category[]>([]);
+
+// BUG-23: categories were never linked to anywhere on the storefront —
+// populate the "Shop" dropdown (desktop) and drawer section (mobile) with
+// the top-level category tree so people can actually browse by category.
+useEffect(() => {
+  let cancelled = false;
+  apiClient
+    .get<any>("/categories", { auth: false })
+    .then((data) => {
+      if (!cancelled) setCategories(getCategoriesFromData(data));
+    })
+    .catch(() => {
+      // Non-critical — the nav still works without the dropdown.
+    });
+  return () => {
+    cancelled = true;
+  };
+}, []);
 
   useEffect(() => {
     function onScroll() {
@@ -349,28 +387,59 @@ const { cartCount, wishlistCount } = useCommerce();
           <nav aria-label="Main" className="hidden items-center gap-6 lg:flex xl:gap-10">
             {NAV_LINKS.map((link) => {
               const active = pathname === link.href;
+              const showDropdown = Boolean(link.hasDropdown) && categories.length > 0;
               return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  aria-current={active ? "page" : undefined}
-                  className={`flex items-center gap-1.5 whitespace-nowrap text-[15px] tracking-wide transition-colors hover:text-[#B98A4E] xl:text-[17px] ${
-                    active ? "text-[#B98A4E]" : "text-[#1C1C1C]"
-                  }`}
-                >
-                  {link.href === "/" && (
-                    <span aria-hidden className="text-[#B98A4E]">
-                      +
-                    </span>
+                <div key={link.href} className={showDropdown ? "group relative" : undefined}>
+                  <Link
+                    href={link.href}
+                    aria-current={active ? "page" : undefined}
+                    className={`flex items-center gap-1.5 whitespace-nowrap text-[15px] tracking-wide transition-colors hover:text-[#B98A4E] xl:text-[17px] ${
+                      active ? "text-[#B98A4E]" : "text-[#1C1C1C]"
+                    }`}
+                  >
+                    {link.href === "/" && (
+                      <span aria-hidden className="text-[#B98A4E]">
+                        +
+                      </span>
+                    )}
+                    {link.label}
+                    {link.hasDropdown && (
+                      <ChevronDown size={15} strokeWidth={1.75} className="mt-0.5 opacity-70" />
+                    )}
+                  </Link>
+                  {showDropdown && (
+                    <div className="invisible absolute left-0 top-full z-50 min-w-48 border border-[#E6DCCB] bg-[#FBF4EC] py-2 opacity-0 shadow-lg transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
+                      {categories.map((cat) => (
+                        <Link
+                          key={cat.id}
+                          href={`/category/${cat.slug}`}
+                          className="block whitespace-nowrap px-4 py-2 text-sm text-[#1C1C1C] hover:bg-[#F2E4CC] hover:text-[#B98A4E]"
+                        >
+                          {cat.name}
+                        </Link>
+                      ))}
+                    </div>
                   )}
-                  {link.label}
-                  {link.hasDropdown && (
-                    <ChevronDown size={15} strokeWidth={1.75} className="mt-0.5 opacity-70" />
-                  )}
-                </Link>
+                </div>
               );
             })}
           </nav>
+
+          {/* {categories.length > 0 && (
+                  <div className="flex flex-col gap-3 border-t border-[#E6DCCB] pt-4">
+                    <span className="text-xs uppercase tracking-wide text-[#5c5347]">Shop by category</span>
+                    {categories.map((cat) => (
+                      <Link
+                        key={cat.id}
+                        href={`/category/${cat.slug}`}
+                        onClick={() => setMobileOpen(false)}
+                        className="text-sm text-[#1C1C1C]"
+                      >
+                        {cat.name}
+                      </Link>
+                    ))}
+                  </div>
+                )} */}
 
           {/* Right icons */}
           <div className="flex shrink-0 items-center gap-3 sm:gap-6 lg:gap-9">

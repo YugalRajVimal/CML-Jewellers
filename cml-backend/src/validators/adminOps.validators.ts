@@ -1,7 +1,12 @@
 import { z } from 'zod';
 
 export const updateOrderStatusSchema = z.object({
-  status: z.enum(['Processing', 'Shipped', 'Delivered', 'Cancelled', 'ReturnRequested']),
+  status: z.enum(['Processing', 'Shipped', 'Delivered', 'Cancelled']),
+  // Only used when status === 'Cancelled' — recorded as the order's cancelReason.
+  // 'ReturnRequested' is intentionally NOT a valid target here: it is only ever
+  // set by the customer-initiated returns flow (see return.service#requestReturn),
+  // never by a manual admin status change (BUG-10).
+  reason: z.string().max(500).optional(),
 });
 
 export const assignCourierSchema = z.object({
@@ -12,7 +17,7 @@ export const setCustomerActiveSchema = z.object({
   isActive: z.boolean(),
 });
 
-export const createCouponSchema = z.object({
+const couponBaseSchema = z.object({
   code: z.string().min(2).max(40),
   type: z.enum(['flat', 'percent']),
   value: z.number().nonnegative(),
@@ -24,7 +29,33 @@ export const createCouponSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-export const updateCouponSchema = createCouponSchema.partial();
+// A percent-type coupon's value is a percentage, so anything over 100 can never be
+// a valid discount (BUG-11) — enforced here rather than trusting every caller.
+function checkPercentValue(
+  data: {
+    value?: number;
+    code?: string;
+    type?: 'flat' | 'percent' | undefined;
+    isActive?: boolean;
+    minCartValue?: number;
+    maxDiscountAmount?: number;
+    expiry?: Date;
+    usageLimit?: number;
+    usageLimitPerUser?: number;
+  },
+  ctx: z.RefinementCtx
+) {
+  if (data.type === 'percent' && data.value !== undefined && data.value > 100) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['value'],
+      message: 'Percent discount cannot exceed 100',
+    });
+  }
+}
+
+export const createCouponSchema = couponBaseSchema.superRefine(checkPercentValue);
+export const updateCouponSchema = couponBaseSchema.partial().superRefine(checkPercentValue);
 
 export const createBannerSchema = z.object({
   type: z.enum(['hero', 'promo', 'category', 'strip']),

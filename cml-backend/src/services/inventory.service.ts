@@ -3,6 +3,7 @@ import { Inventory } from '../models/Inventory.model';
 import { ProductVariant } from '../models/ProductVariant.model';
 import { InventoryTransaction, InventoryTransactionType } from '../models/InventoryTransaction.model';
 import { AppError } from '../utils/AppError';
+import { logger } from '../utils/logger';
 
 export interface StockLineItem {
   variantId: mongoose.Types.ObjectId | string;
@@ -94,16 +95,24 @@ export async function markStockSold(items: StockLineItem[], refId?: string): Pro
   }
 }
 
-/** Moves sold stock to returned (return received from customer). */
+/** Moves sold stock to returned (return received from customer). Guarded by
+ * `sold >= qty` so a data inconsistency (e.g. a duplicated/over-large return)
+ * can never drive `sold` negative — see BUG-17. */
 export async function markStockReturned(items: StockLineItem[], refId?: string): Promise<void> {
   for (const item of items) {
     const updated = await Inventory.findOneAndUpdate(
-      { variantId: item.variantId },
+      { variantId: item.variantId, sold: { $gte: item.qty } },
       { $inc: { sold: -item.qty, returned: item.qty } },
       { new: true }
     );
     if (updated) {
       await logTransaction(updated._id, item.variantId, 'return', item.qty, refId);
+    } else {
+      logger.error('markStockReturned: insufficient sold stock to mark returned — skipped to avoid a negative sold count', {
+        variantId: String(item.variantId),
+        qty: item.qty,
+        refId,
+      });
     }
   }
 }

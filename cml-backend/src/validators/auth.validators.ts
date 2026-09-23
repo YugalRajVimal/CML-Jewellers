@@ -31,16 +31,23 @@ export const loginSchema = z
     path: ['email'],
   });
 
+// BUG-15: 'verify_contact' is deliberately excluded here. It has its own authenticated
+// route (/auth/verify/send + /auth/verify/confirm, which derive the identifier from the
+// logged-in user) — allowing it on this unauthenticated route let anyone trigger an OTP
+// send to an arbitrary email/phone with no rate-limited relationship to an account, which
+// is a spam/harassment vector as well as being redundant.
+const publicOtpPurpose = z.enum(['register', 'login', 'password_reset']);
+
 export const sendOtpSchema = z.object({
   channel: z.enum(['email', 'sms']),
   identifier: z.string().min(3),
-  purpose: z.enum(['register', 'login', 'password_reset', 'verify_contact']),
+  purpose: publicOtpPurpose,
 });
 
 export const verifyOtpSchema = z.object({
   channel: z.enum(['email', 'sms']),
   identifier: z.string().min(3),
-  purpose: z.enum(['register', 'login', 'password_reset', 'verify_contact']),
+  purpose: publicOtpPurpose,
   code: z.string().length(6),
 });
 

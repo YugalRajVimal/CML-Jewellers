@@ -4,7 +4,10 @@ export const createCategorySchema = z.object({
   name: z.string().min(2).max(100),
   slug: z.string().min(2).max(120).optional(),
   description: z.string().max(2000).optional(),
-  parentId: z.string().optional(),
+  image: z.string().optional(),
+  // Top-level categories are created with parentId omitted or explicitly
+  // null (BUG-23) — only .optional() rejected the null the admin UI sends.
+  parentId: z.string().nullable().optional(),
   displayOrder: z.number().int().optional(),
   isActive: z.boolean().optional(),
 });

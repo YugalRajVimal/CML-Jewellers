@@ -35,6 +35,40 @@ async function resolveCategoryRef(value?: string): Promise<mongoose.Types.Object
   return doc?._id;
 }
 
+/**
+ * Builds the $or clause for a `category` filter (BUG-23).
+ *
+ * Product.categoryId is not guaranteed to be the top-level category — the
+ * admin form lets a product's categoryId be set to a subcategory directly,
+ * and Product.subcategoryId is a separate, optional child reference. Simply
+ * matching `categoryId === resolved` therefore missed products filed under
+ * a subcategory when browsing the parent's page. This resolves the given
+ * category/subcategory id-or-slug and, when it's a top-level category, also
+ * matches its children (by categoryId or subcategoryId); when it's already a
+ * subcategory, matches products that reference it either way.
+ */
+async function resolveCategoryCondition(value?: string): Promise<Record<string, unknown> | undefined> {
+  if (!value) return undefined;
+
+  const doc = mongoose.isValidObjectId(value)
+    ? await Category.findById(value).select('_id parentId')
+    : await Category.findOne({ slug: value }).select('_id parentId');
+
+  if (!doc) {
+    // Unknown category — match nothing rather than silently ignoring the filter.
+    return { categoryId: new mongoose.Types.ObjectId() };
+  }
+
+  if (doc.parentId) {
+    // Already a subcategory: no descendants to expand.
+    return { $or: [{ categoryId: doc._id }, { subcategoryId: doc._id }] };
+  }
+
+  const children = await Category.find({ parentId: doc._id }).select('_id');
+  const ids = [doc._id, ...children.map((c) => c._id)];
+  return { $or: [{ categoryId: { $in: ids } }, { subcategoryId: { $in: ids } }] };
+}
+
 async function resolveCollectionRef(value?: string): Promise<mongoose.Types.ObjectId | undefined> {
   if (!value) return undefined;
   if (mongoose.isValidObjectId(value)) return new mongoose.Types.ObjectId(value);
@@ -90,8 +124,8 @@ export async function queryProducts(
 ) {
   const { page, limit, skip } = parsePagination(query as unknown as Record<string, unknown>);
 
-  const [categoryId, subcategoryId, collectionId] = await Promise.all([
-    resolveCategoryRef(query.category),
+  const [categoryCondition, subcategoryId, collectionId] = await Promise.all([
+    resolveCategoryCondition(query.category),
     resolveCategoryRef(query.subcategory),
     resolveCollectionRef(query.collection),
   ]);
@@ -105,8 +139,15 @@ export async function queryProducts(
       : {}
     : { status: 'active' };
 
-  if (categoryId) match.categoryId = categoryId;
-  if (subcategoryId) match.subcategoryId = subcategoryId;
+  // BUG-23: category and subcategory filters both narrow further, so combine
+  // them as separate $and clauses rather than one overwriting the other.
+  const andConditions: Record<string, unknown>[] = [];
+  if (categoryCondition) andConditions.push(categoryCondition);
+  // An explicit ?subcategory= is always an exact match against that one
+  // subcategory (no expansion — a subcategory has no children of its own).
+  if (subcategoryId) andConditions.push({ subcategoryId });
+  if (andConditions.length > 0) match.$and = andConditions;
+
   if (collectionId) match.collectionId = collectionId;
   if (query.gender) match['attributes.gender'] = query.gender;
   if (query.jewelryType) match['attributes.jewelryType'] = query.jewelryType;

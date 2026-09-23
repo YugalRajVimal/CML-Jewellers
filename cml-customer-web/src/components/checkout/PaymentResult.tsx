@@ -94,8 +94,11 @@ export function PaymentResult({ flavor }: { flavor: PaymentFlavor }) {
     return (
       <Shell>
         <h1 className="font-display text-2xl text-[var(--color-ink)]">Payment successful</h1>
-        <p className="mt-3 text-sm text-[var(--color-stone)]">
+        {/* <p className="mt-3 text-sm text-[var(--color-stone)]">
           Order <strong>{order?.id}</strong> is confirmed. We&apos;ll email you as it ships.
+        </p> */}
+        <p className="mt-3 text-sm text-[var(--color-stone)]">
+          Order <strong>{order?.orderNumber ?? order?.id}</strong> is confirmed. We&apos;ll email you as it ships.
         </p>
         <Link href={`/orders/${order?.id}`} className="pill mt-8">
           View order

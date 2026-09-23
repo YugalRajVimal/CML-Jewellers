@@ -6,6 +6,7 @@ import * as api from "@/lib/api";
 import { Category } from "@/lib/types";
 import { PageHeader, Panel, Button, StatusPill, Select } from "@/components/ui";
 import { Drawer, Field, TextInput } from "@/components/drawer";
+import { ImageUploader } from "@/components/image-uploader";
 import { PermissionGate } from "@/components/permission-gate";
 import { useAuth } from "@/lib/auth";
 
@@ -37,6 +38,7 @@ function CategoriesInner() {
   const [editing, setEditing] = useState<Category | null>(null);
   const [name, setName] = useState("");
   const [parentId, setParentId] = useState("");
+  const [image, setImage] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteError, setDeleteError] = useState<Record<string, string>>({});
@@ -57,6 +59,7 @@ function CategoriesInner() {
     setEditing(null);
     setName("");
     setParentId("");
+    setImage(null);
     setFormError(null);
     setDrawerOpen(true);
   }
@@ -65,6 +68,7 @@ function CategoriesInner() {
     setEditing(cat);
     setName(cat.name);
     setParentId(cat.parentId ?? "");
+    setImage(cat.image ?? null);
     setFormError(null);
     setDrawerOpen(true);
   }
@@ -76,9 +80,11 @@ function CategoriesInner() {
     setSaving(true);
     try {
       if (editing) {
-        await api.updateCategory(getCategoryId(editing), { name: name.trim() });
+        const patch: { name: string; image?: string | null } = { name: name.trim() };
+        if (image !== (editing.image ?? null)) patch.image = image;
+        await api.updateCategory(getCategoryId(editing), patch);
       } else {
-        await api.createCategory({ name: name.trim(), parentId: parentId || null });
+        await api.createCategory({ name: name.trim(), parentId: parentId || null, image: image || undefined });
       }
       setDrawerOpen(false);
       await load();
@@ -181,6 +187,9 @@ function CategoriesInner() {
           <Field label="Category name">
             <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Pendants" />
           </Field>
+          <div className="mb-4">
+            <ImageUploader value={image} onChange={setImage} folder="categories" label="Category image" />
+          </div>
           {!editing && (
             <Field label="Parent category" hint="Leave blank to create a top-level category">
               <Select value={parentId} onChange={(e) => setParentId(e.target.value)} className="w-full">
