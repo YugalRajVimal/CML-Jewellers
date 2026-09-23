@@ -43,6 +43,21 @@ export const otpRateLimiter = rateLimit({
     }),
 });
 
+/** Contact form / newsletter signup — public, unauthenticated endpoints that are easy
+ * spam targets; generous enough for a real visitor, tight enough to blunt a bot. */
+export const publicFormRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) =>
+    sendError(res, {
+      message: 'Too many submissions. Please try again later.',
+      code: 'RATE_LIMITED',
+      statusCode: 429,
+    }),
+});
+
 /** Admin login limiter — stricter, smaller window abuse is more sensitive. */
 export const adminAuthRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

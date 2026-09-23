@@ -49,6 +49,21 @@ export function globalErrorHandler(err: unknown, req: Request, res: Response, ne
     return;
   }
 
+  // Multer upload errors (e.g. file too large, unexpected field) — without this they fell through to a 500.
+  if (typeof err === 'object' && err !== null && (err as { name?: string }).name === 'MulterError') {
+    const code = (err as { code?: string }).code;
+    const message =
+      code === 'LIMIT_FILE_SIZE'
+        ? 'File is too large.'
+        : (err as { message?: string }).message || 'Invalid file upload.';
+    sendError(res, {
+      message,
+      code: code === 'LIMIT_FILE_SIZE' ? 'FILE_TOO_LARGE' : 'UPLOAD_ERROR',
+      statusCode: code === 'LIMIT_FILE_SIZE' ? 413 : 400,
+    });
+    return;
+  }
+
   // Mongoose validation error. `details.issues` matches the shape the zod `validate`
   // middleware and AppError validation failures use, so clients can render one list.
   if (typeof err === 'object' && err !== null && (err as { name?: string }).name === 'ValidationError') {
